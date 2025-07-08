@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_view_details"
+        android:title="Ver detalhes"
+        android:icon="@drawable/ic_visibility" />
+
+    <item
+        android:id="@+id/action_edit"
+        android:title="Editar"
+        android:icon="@drawable/ic_edit" />
+
+    <item
+        android:id="@+id/action_call"
+        android:title="Ligar"
+        android:icon="@drawable/ic_call" />
+
+    <item
+        android:id="@+id/action_delete"
+        android:title="Excluir"
+        android:icon="@drawable/ic_delete" />
+
+</menu>

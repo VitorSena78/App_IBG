@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/nav_paciente_formulario">
+
+    <fragment
+        android:id="@+id/nav_paciente_formulario"
+        android:name="com.example.projeto_ibg3.ui.pacienteformulario.PacienteFormularioFragment"
+        android:label="@string/menu_formulario"
+        tools:layout="@layout/fragment_paciente_formulario">
+        <argument
+            android:name="pacienteId"
+            app:argType="long"
+            android:defaultValue="0L" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_lista"
+        android:name="com.example.projeto_ibg3.ui.Lista.ListaFragment"
+        android:label="@string/lista"
+        tools:layout="@layout/fragment_paciente_lista">
+
+        <!-- Para adicionar paciente -->
+        <action
+            android:id="@+id/action_lista_to_addPaciente"
+            app:destination="@id/nav_paciente_formulario" />
+
+        <!-- Para ver detalhes paciente -->
+        <action
+            android:id="@+id/action_lista_to_pacienteDetalhe"
+            app:destination="@id/nav_paciente_detalhe" />
+
+        <!-- Para editar paciente -->
+        <action
+            android:id="@+id/action_lista_to_editPaciente"
+            app:destination="@id/nav_paciente_formulario" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_paciente_detalhe"
+        android:name="com.example.projeto_ibg3.ui.pacientedetalhe.PacienteDetalheFragment"
+        android:label="Detalhes do Paciente"
+        tools:layout="@layout/fragment_paciente_detalhe">
+
+        <argument
+            android:name="pacienteId"
+            app:argType="long"
+            android:defaultValue="0L" />
+
+        <!-- ACTION -->
+        <action
+            android:id="@+id/action_pacienteDetail_to_editPaciente"
+            app:destination="@id/nav_paciente_formulario" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_slideshow"
+        android:name="com.example.projeto_ibg3.ui.slideshow.SlideshowFragment"
+        android:label="@string/menu_slideshow"
+        tools:layout="@layout/fragment_slideshow" />
+
+</navigation>
