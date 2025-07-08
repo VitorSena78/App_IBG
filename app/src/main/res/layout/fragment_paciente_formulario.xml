@@ -279,7 +279,7 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="36dp"
+                        android:layout_marginBottom="28dp"
                         android:hint="Endereço completo"
                         app:boxCornerRadiusBottomEnd="14dp"
                         app:boxCornerRadiusBottomStart="14dp"
@@ -298,6 +298,166 @@
                             android:padding="16dp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Seção de Especialidades -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="36dp"
+                        android:orientation="vertical">
+
+                        <!-- Título da seção -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="16dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_marginEnd="12dp"
+                                android:src="@drawable/ic_medical_services"
+                                app:tint="@color/primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Especialidades"
+                                android:textColor="@color/primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <!-- Subtítulo -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="16dp"
+                            android:text="Selecione uma ou mais especialidades:"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <!-- Chip Group para especialidades -->
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/chip_group_especialidades"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            app:chipSpacing="8dp"
+                            app:chipSpacingHorizontal="8dp"
+                            app:chipSpacingVertical="8dp"
+                            app:selectionRequired="false"
+                            app:singleSelection="false">
+
+                            <!-- Chips serão adicionados dinamicamente via código -->
+                            <!-- Exemplo estático para visualização: -->
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_cardiologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Cardiologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_pediatria"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Pediatria"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_clinico_geral"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Clínico Geral"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_neurologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Neurologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_ginecologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Ginecologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_dermatologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Dermatologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_ortopedia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Ortopedia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_endocrinologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Endocrinologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_oftalmologia"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Oftalmologia"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chip_psiquiatria"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Psiquiatria"
+                                app:chipCornerRadius="16dp"
+                                app:chipStrokeWidth="2dp" />
+
+                        </com.google.android.material.chip.ChipGroup>
+
+                        <!-- Mensagem de validação -->
+                        <TextView
+                            android:id="@+id/tv_especialidades_error"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Selecione pelo menos uma especialidade"
+                            android:textColor="@color/error"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
 
                     <!-- Botões -->
                     <LinearLayout

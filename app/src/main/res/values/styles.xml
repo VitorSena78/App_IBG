@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- butoes de seleção de especialidades -->
+    <style name="customChipStyle" parent="Widget.MaterialComponents.Chip.Filter">
+
+    </style>
+
+</resources>

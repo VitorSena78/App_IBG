@@ -16,7 +16,7 @@
 
         <!-- Fundo e superfícies -->
         <item name="android:colorBackground">@color/background</item>
-        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurface">@color/white</item>
         <item name="colorOnSurface">@color/on_surface</item>
         <item name="colorOnBackground">@color/on_background</item>
     </style>
@@ -30,4 +30,5 @@
     <!-- Sobreposições -->
     <style name="Theme.Projeto_IBG3.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
     <style name="Theme.Projeto_IBG3.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+
 </resources>

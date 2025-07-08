@@ -4,7 +4,7 @@
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
     <color name="primary_light">#BBDEFB</color>
-    <color name="on_primary">#FFFFFF</color>
+    <color name="on_primary">@color/white</color>
 
     <color name="accent">#FF4081</color>
     <color name="accent_dark">#C2185B</color>
@@ -17,10 +17,8 @@
     <color name="teal_700">#FF018786</color>
 
     <!-- ========== FUNDOS E SUPERFÍCIES ========== -->
-    <color name="background">#FFFFFF</color>
+    <color name="background">@color/white</color>
     <color name="background_light">#FAFAFA</color>
-    <color name="background_white">#FFFFFF</color>
-    <color name="surface">#FFFFFF</color>
 
     <!-- ========== TEXTO ========== -->
     <color name="text_primary">#212121</color>
