@@ -8,7 +8,7 @@ fun PacienteEspecialidadeEntity.toPacienteEspecialidade(): PacienteEspecialidade
     return PacienteEspecialidade(
         pacienteId = this.pacienteId,
         especialidadeId = this.especialidadeId,
-        dataAtendimento = Date(this.dataAtendimento)
+        dataAtendimento = this.dataAtendimento?.let { Date(it) }
     )
 }
 

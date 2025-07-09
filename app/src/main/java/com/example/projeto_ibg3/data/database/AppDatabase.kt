@@ -22,7 +22,7 @@ import com.example.projeto_ibg3.data.entity.SyncMetadataEntity
         PacienteEspecialidadeEntity::class,
         SyncMetadataEntity::class
     ],
-    version = 1,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(SyncStatusConverter::class)

@@ -26,7 +26,10 @@ data class Paciente(
     val altura: Float? = null,                      // Altura em metros
     val imc: Float? = null,
     // Especialidades associadas
-    val especialidades: List<Especialidade> = emptyList()
+    val especialidades: List<Especialidade> = emptyList(),
+    //Dados de controle
+    val createdAt: Date? = null,
+    val updatedAt: Date? = null
 ) {
 
 

@@ -107,111 +107,112 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     tools:text="45 anos" />
 
-                <!-- Chips de informação -->
-                <LinearLayout
-                    android:id="@+id/layout_chips"
-                    android:layout_width="wrap_content"
+                <!-- Chips horizontais com scroll  -->
+                <HorizontalScrollView
+                    android:id="@+id/scroll_specialties"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:orientation="horizontal"
-                    android:gravity="center"
+                    android:scrollbars="none"
                     app:layout_constraintTop_toBottomOf="@id/tv_age"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent">
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_cpf"
-                        style="@style/Widget.MaterialComponents.Chip.Action"
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chip_group_specialties"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:text="CPF"
-                        android:textSize="12sp"
-                        android:textColor="@color/primary"
-                        app:chipBackgroundColor="@android:color/white"
-                        app:chipStrokeWidth="0dp"
-                        app:chipIcon="@drawable/ic_badge"
-                        app:chipIconTint="@color/primary"
-                        app:chipCornerRadius="12dp" />
+                        android:paddingHorizontal="20dp"
+                        app:singleLine="true"
+                        app:chipSpacingHorizontal="8dp">
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_sus"
-                        style="@style/Widget.MaterialComponents.Chip.Action"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="SUS"
-                        android:textSize="12sp"
-                        android:textColor="@color/primary"
-                        app:chipBackgroundColor="@android:color/white"
-                        app:chipStrokeWidth="0dp"
-                        app:chipIcon="@drawable/ic_medical_services"
-                        app:chipIconTint="@color/primary"
-                        app:chipCornerRadius="12dp" />
+                        <!-- Exemplos de chips de especialidades -->
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip_cardiology"
+                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Cardiologia"
+                            android:textSize="12sp"
+                            android:textColor="@color/primary"
+                            app:chipBackgroundColor="@android:color/white"
+                            app:chipStrokeWidth="0dp"
+                            app:chipCornerRadius="12dp" />
 
-                </LinearLayout>
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip_neurology"
+                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Neurologia"
+                            android:textSize="12sp"
+                            android:textColor="@color/primary"
+                            app:chipBackgroundColor="@android:color/white"
+                            app:chipStrokeWidth="0dp"
+                            app:chipCornerRadius="12dp" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip_orthopedics"
+                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Ortopedia"
+                            android:textSize="12sp"
+                            android:textColor="@color/primary"
+                            app:chipBackgroundColor="@android:color/white"
+                            app:chipStrokeWidth="0dp"
+                            app:chipCornerRadius="12dp" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip_dermatology"
+                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Dermatologia"
+                            android:textSize="12sp"
+                            android:textColor="@color/primary"
+                            app:chipBackgroundColor="@android:color/white"
+                            app:chipStrokeWidth="0dp"
+                            app:chipCornerRadius="12dp" />
+
+                    </com.google.android.material.chip.ChipGroup>
+
+                </HorizontalScrollView>
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Botões de ação -->
-        <LinearLayout
-            android:id="@+id/layout_actions"
+        <!-- Botão de editar -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_edit"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_marginTop="20dp"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
+            android:text="Editar Paciente"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:cornerRadius="16dp"
+            app:icon="@drawable/ic_edit"
+            app:iconTint="@android:color/white"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
             app:layout_constraintTop_toBottomOf="@id/card_header"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
+            app:layout_constraintEnd_toEndOf="parent" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_call"
-                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_marginEnd="12dp"
-                android:layout_weight="1"
-                android:text="Ligar"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/ic_call"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_edit"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:text="Editar"
-                android:textColor="@color/primary"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/ic_edit"
-                app:iconTint="@color/primary"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:strokeColor="@color/primary"
-                app:strokeWidth="2dp" />
-
-        </LinearLayout>
-
-        <!-- Card com informações detalhadas -->
+        <!-- Card com informações pessoais -->
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/card_details"
+            android:id="@+id/card_personal_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             app:cardCornerRadius="20dp"
             app:cardElevation="0dp"
             app:cardBackgroundColor="@android:color/white"
-            app:layout_constraintTop_toBottomOf="@id/layout_actions"
+            app:layout_constraintTop_toBottomOf="@id/btn_edit"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -494,16 +495,16 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Card com histórico médico (opcional) -->
+        <!-- Card com informações do sistema -->
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/card_medical_history"
+            android:id="@+id/card_system_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             app:cardCornerRadius="20dp"
             app:cardElevation="0dp"
             app:cardBackgroundColor="@android:color/white"
-            app:layout_constraintTop_toBottomOf="@id/card_details"
+            app:layout_constraintTop_toBottomOf="@id/card_personal_info"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -514,81 +515,142 @@
                 android:padding="28dp">
 
                 <!-- Título da seção -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Informações do Sistema"
+                    android:textColor="@color/primary"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="20dp" />
+
+                <!-- ID do paciente -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="20dp"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="20dp">
+                    android:gravity="center_vertical">
 
-                    <TextView
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_fingerprint"
+                        app:tint="@color/primary" />
+
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
                         android:layout_weight="1"
-                        android:text="Histórico Médico"
-                        android:textColor="@color/primary"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        android:orientation="vertical">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_add_record"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Adicionar"
-                        android:textColor="@color/primary"
-                        android:textSize="14sp"
-                        app:icon="@drawable/ic_add"
-                        app:iconTint="@color/primary"
-                        app:iconGravity="textStart"
-                        app:iconPadding="4dp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="ID do Paciente"
+                            android:textColor="@android:color/darker_gray"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tv_patient_id"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@android:color/black"
+                            android:textSize="16sp"
+                            android:fontFamily="monospace"
+                            tools:text="#001234" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 
-                <!-- Lista de consultas/procedimentos recentes -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rv_medical_history"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    tools:itemCount="3"
-                    tools:listitem="@layout/item_medical_record" />
-
-                <!-- Mensagem quando não há histórico -->
+                <!-- Data de criação -->
                 <LinearLayout
-                    android:id="@+id/layout_empty_history"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:paddingVertical="32dp"
-                    android:visibility="gone"
-                    tools:visibility="visible">
+                    android:layout_marginBottom="20dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
                     <ImageView
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:src="@drawable/ic_medical_services"
-                        android:alpha="0.3"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_add_circle"
                         app:tint="@color/primary" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Nenhum histórico médico encontrado"
-                        android:textColor="@android:color/darker_gray"
-                        android:textSize="16sp"
-                        android:alpha="0.7" />
+                        android:layout_marginStart="16dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Data de Criação"
+                            android:textColor="@android:color/darker_gray"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tv_created_at"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@android:color/black"
+                            android:textSize="16sp"
+                            tools:text="15/03/2024 às 14:30" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Última modificação -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="20dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_update"
+                        app:tint="@color/primary" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Toque em 'Adicionar' para criar o primeiro registro"
-                        android:textColor="@android:color/darker_gray"
-                        android:textSize="14sp"
-                        android:alpha="0.5" />
+                        android:layout_marginStart="16dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Última Modificação"
+                            android:textColor="@android:color/darker_gray"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:alpha="0.7" />
+
+                        <TextView
+                            android:id="@+id/tv_updated_at"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@android:color/black"
+                            android:textSize="16sp"
+                            tools:text="20/03/2024 às 09:15" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 

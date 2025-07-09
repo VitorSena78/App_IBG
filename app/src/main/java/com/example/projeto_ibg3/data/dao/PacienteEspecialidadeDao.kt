@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PacienteEspecialidadeDao {
 
+    @Query("SELECT * FROM paciente_has_especialidade")
+    suspend fun getAll(): List<PacienteEspecialidadeEntity>
+
     @Query("SELECT * FROM Paciente_has_Especialidade")
     fun getAllPacienteEspecialidades(): Flow<List<PacienteEspecialidadeEntity>>
 

@@ -69,6 +69,13 @@ data class PacienteEntity(
     @ColumnInfo(name = "imc")
     val imc: Float? = null,
 
+    //Dados de controle
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long = System.currentTimeMillis(),
+
     // Campos para sincronização offline
     @ColumnInfo(name = "sync_status")
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
@@ -77,6 +84,13 @@ data class PacienteEntity(
     val lastModified: Long = System.currentTimeMillis(),
 
     @ColumnInfo(name = "is_deleted")
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+
+    @ColumnInfo(name = "version")
+    val version: Int = 1,
+
+    @ColumnInfo(name = "conflict_data")
+    val conflictData: String? = null
+
 )
 

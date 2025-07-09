@@ -2,11 +2,19 @@ package com.example.projeto_ibg3.data.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import com.example.projeto_ibg3.model.SyncStatus
 
 @Entity(
     tableName = "Paciente_has_especialidade",
     primaryKeys = ["Paciente_id", "Especialidade_id"],
+    indices = [
+        Index(value = ["Especialidade_id"]), // Índice para a chave estrangeira
+        Index(value = ["Paciente_id"]), // Índice para a chave estrangeira (opcional, mas recomendado)
+        Index(value = ["sync_status"]), // Índice para consultas por status de sincronização
+        Index(value = ["last_modified"]), // Índice para ordenação por última modificação
+        Index(value = ["is_deleted"]) // Índice para filtrar registros deletados
+    ],
     foreignKeys = [
         androidx.room.ForeignKey(
             entity = PacienteEntity::class,
@@ -32,7 +40,7 @@ data class PacienteEspecialidadeEntity(
     val especialidadeId: Long,
 
     @ColumnInfo(name = "data_atendimento")
-    val dataAtendimento: Long = System.currentTimeMillis(), // Timestamp da data
+    val dataAtendimento: Long? = System.currentTimeMillis(), // Timestamp da data
 
     // Campos para sincronização
     @ColumnInfo(name = "sync_status")

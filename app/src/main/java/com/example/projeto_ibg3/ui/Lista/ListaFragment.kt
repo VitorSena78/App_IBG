@@ -3,6 +3,7 @@ package com.example.projeto_ibg3.ui.Lista
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +30,7 @@ import com.google.android.material.textfield.TextInputEditText
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlin.math.log
 
 @AndroidEntryPoint
 class ListaFragment : Fragment(), PacienteAdapterCallback {
@@ -143,29 +145,21 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
     }
 
     private fun navigateToAddPaciente() {
-        // Navigation Component
         findNavController().navigate(R.id.action_lista_to_addPaciente)
-
-        // Activity/Fragment replace
-        /*parentFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, AddPacienteFragment())
-            .addToBackStack(null)
-            .commit()*/
     }
 
     // Implementação das callbacks do adapter
     override fun onPacienteClick(paciente: Paciente) {
-        // Navegar para detalhes do paciente
+        // Usar o mesmo nome de constante do PacienteDetalheFragment
         val bundle = Bundle().apply {
-            putLong("pacienteId", paciente.id)
+            putLong("paciente_id", paciente.id) // Envia apenas o ID do paciente
         }
         findNavController().navigate(R.id.action_lista_to_pacienteDetalhe, bundle)
     }
 
     override fun onEditPaciente(paciente: Paciente) {
-        // Navegar para edição do paciente
         val bundle = Bundle().apply {
-            putLong("pacienteId", paciente.id)
+            putLong("paciente_id", paciente.id) // Mudança aqui também
         }
         findNavController().navigate(R.id.action_lista_to_editPaciente, bundle)
     }
@@ -195,10 +189,10 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
     }
 
     override fun onViewDetails(paciente: Paciente) {
-        onPacienteClick(paciente) // Reutilizar a navegação para detalhes
+        onPacienteClick(paciente)
     }
 
     companion object {
-        fun newInstance() = ListFragment()
+        fun newInstance() = ListaFragment()
     }
 }

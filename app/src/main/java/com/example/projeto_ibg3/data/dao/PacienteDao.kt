@@ -73,7 +73,7 @@ interface PacienteDao {
     // ========== MARCAÇÃO E DELEÇÃO ==========
 
     @Query("UPDATE pacientes SET is_deleted = 1, sync_status = :status, last_modified = :timestamp WHERE id = :id")
-    suspend fun markAsDeleted(id: Long, status: SyncStatus = SyncStatus.PENDING_DELETION, timestamp: Long)
+    suspend fun markAsDeleted(id: Long, status: SyncStatus = SyncStatus.PENDING_DELETE, timestamp: Long)
 
     @Query("DELETE FROM pacientes WHERE id = :id")
     suspend fun deletePacientePermanently(id: Long)
@@ -84,7 +84,13 @@ interface PacienteDao {
     suspend fun getPendingSync(status: SyncStatus = SyncStatus.PENDING_UPLOAD): List<PacienteEntity>
 
     @Query("SELECT * FROM pacientes WHERE sync_status = :status AND is_deleted = 1")
-    suspend fun getPendingDeletions(status: SyncStatus = SyncStatus.PENDING_DELETION): List<PacienteEntity>
+    suspend fun getPendingDeletions(status: SyncStatus = SyncStatus.PENDING_DELETE): List<PacienteEntity>
+
+    @Query("SELECT * FROM pacientes WHERE sync_status IN (:uploadFailed, :deleteFailed)")
+    suspend fun getFailedItems(
+        uploadFailed: SyncStatus = SyncStatus.UPLOAD_FAILED,
+        deleteFailed: SyncStatus = SyncStatus.DELETE_FAILED
+    ): List<PacienteEntity>
 
     @Query("SELECT * FROM pacientes WHERE sync_status = :status")
     suspend fun getPacientesBySyncStatus(status: SyncStatus): List<PacienteEntity>
@@ -100,14 +106,23 @@ interface PacienteDao {
     @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status != :status")
     suspend fun getUnsyncedCount(status: SyncStatus = SyncStatus.SYNCED): Int
 
-    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = 'PENDING_UPLOAD'")
-    suspend fun getPendingSyncCount(): Int
+    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = :status")
+    suspend fun getPendingSyncCount(status: SyncStatus = SyncStatus.PENDING_UPLOAD): Int
 
-    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = 'PENDING_DELETION'")
-    suspend fun getPendingDeletionCount(): Int
+    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status IN (:uploadFailed, :deleteFailed)")
+    suspend fun getFailedSyncCount(
+        uploadFailed: SyncStatus = SyncStatus.UPLOAD_FAILED,
+        deleteFailed: SyncStatus = SyncStatus.DELETE_FAILED
+    ): Int
 
-    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = 'CONFLICT'")
-    suspend fun getConflictCount(): Int
+    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = :status")
+    suspend fun getPendingDeletionCount(status: SyncStatus = SyncStatus.PENDING_DELETE): Int
+
+    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = :status")
+    suspend fun getConflictCount(status: SyncStatus = SyncStatus.CONFLICT): Int
+
+    @Query("SELECT COUNT(*) FROM pacientes WHERE sync_status = :status")
+    suspend fun getSyncingCount(status: SyncStatus = SyncStatus.SYNCING): Int
 
     // ========== RELATÓRIOS MÉDICOS ==========
 
@@ -149,6 +164,58 @@ interface PacienteDao {
     @Query("DELETE FROM pacientes WHERE is_deleted = 1 AND last_modified < :cutoffTime")
     suspend fun cleanupOldDeletedPacientes(cutoffTime: Long)
 
-    @Query("DELETE FROM pacientes WHERE sync_status = 'SYNCED' AND is_deleted = 1")
-    suspend fun cleanupSyncedDeletedPacientes()
+    @Query("DELETE FROM pacientes WHERE sync_status = :status AND is_deleted = 1")
+    suspend fun cleanupSyncedDeletedPacientes(status: SyncStatus = SyncStatus.SYNCED)
+
+    // ========== MÉTODOS AUXILIARES PARA SINCRONIZAÇÃO ==========
+
+    /**
+     * Busca todos os itens que precisam de sincronização
+     * (usando os métodos do enum)
+     */
+    @Query("""
+        SELECT * FROM pacientes 
+        WHERE sync_status IN (:pendingUpload, :pendingDelete, :uploadFailed, :deleteFailed, :conflict)
+        ORDER BY last_modified ASC
+    """)
+    suspend fun getItemsNeedingSync(
+        pendingUpload: SyncStatus = SyncStatus.PENDING_UPLOAD,
+        pendingDelete: SyncStatus = SyncStatus.PENDING_DELETE,
+        uploadFailed: SyncStatus = SyncStatus.UPLOAD_FAILED,
+        deleteFailed: SyncStatus = SyncStatus.DELETE_FAILED,
+        conflict: SyncStatus = SyncStatus.CONFLICT
+    ): List<PacienteEntity>
+
+    /**
+     * Busca itens que estão falhando na sincronização
+     */
+    @Query("SELECT * FROM pacientes WHERE sync_status IN (:uploadFailed, :deleteFailed)")
+    suspend fun getFailedSyncItems(
+        uploadFailed: SyncStatus = SyncStatus.UPLOAD_FAILED,
+        deleteFailed: SyncStatus = SyncStatus.DELETE_FAILED
+    ): List<PacienteEntity>
+
+    /**
+     * Busca itens que estão pendentes para sincronização
+     */
+    @Query("SELECT * FROM pacientes WHERE sync_status IN (:pendingUpload, :pendingDelete)")
+    suspend fun getPendingSyncItems(
+        pendingUpload: SyncStatus = SyncStatus.PENDING_UPLOAD,
+        pendingDelete: SyncStatus = SyncStatus.PENDING_DELETE
+    ): List<PacienteEntity>
+
+    /**
+     * Conta total de itens que precisam de sincronização
+     */
+    @Query("""
+        SELECT COUNT(*) FROM pacientes 
+        WHERE sync_status IN (:pendingUpload, :pendingDelete, :uploadFailed, :deleteFailed, :conflict)
+    """)
+    suspend fun countItemsNeedingSync(
+        pendingUpload: SyncStatus = SyncStatus.PENDING_UPLOAD,
+        pendingDelete: SyncStatus = SyncStatus.PENDING_DELETE,
+        uploadFailed: SyncStatus = SyncStatus.UPLOAD_FAILED,
+        deleteFailed: SyncStatus = SyncStatus.DELETE_FAILED,
+        conflict: SyncStatus = SyncStatus.CONFLICT
+    ): Int
 }

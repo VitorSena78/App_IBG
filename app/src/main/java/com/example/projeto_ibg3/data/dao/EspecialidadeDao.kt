@@ -17,6 +17,12 @@ interface EspecialidadeDao {
     @Query("SELECT * FROM especialidades WHERE server_id = :serverId AND is_deleted = 0")
     suspend fun getEspecialidadeByServerId(serverId: Long): EspecialidadeEntity?
 
+    @Query("SELECT * FROM especialidades WHERE nome = :nome")
+    suspend fun getEspecialidadeByName(nome: String): EspecialidadeEntity?
+
+    @Query("SELECT COUNT(*) FROM especialidades")
+    suspend fun getEspecialidadesCount(): Int
+
     @Query("SELECT * FROM especialidades WHERE nome LIKE '%' || :nome || '%' AND is_deleted = 0")
     suspend fun searchEspecialidadesByName(nome: String): List<EspecialidadeEntity>
 
@@ -33,7 +39,7 @@ interface EspecialidadeDao {
     suspend fun insertOrUpdateEspecialidade(especialidade: EspecialidadeEntity)
 
     @Query("UPDATE especialidades SET is_deleted = 1, sync_status = :status, last_modified = :timestamp WHERE id = :id")
-    suspend fun markAsDeleted(id: Long, status: SyncStatus = SyncStatus.PENDING_DELETION, timestamp: Long)
+    suspend fun markAsDeleted(id: Long, status: SyncStatus = SyncStatus.PENDING_DELETE, timestamp: Long)
 
     @Query("DELETE FROM especialidades WHERE id = :id")
     suspend fun deleteEspecialidadePermanently(id: Long)
@@ -43,5 +49,5 @@ interface EspecialidadeDao {
     suspend fun getPendingSync(status: SyncStatus = SyncStatus.PENDING_UPLOAD): List<EspecialidadeEntity>
 
     @Query("SELECT * FROM especialidades WHERE sync_status = :status AND is_deleted = 1")
-    suspend fun getPendingDeletions(status: SyncStatus = SyncStatus.PENDING_DELETION): List<EspecialidadeEntity>
+    suspend fun getPendingDeletions(status: SyncStatus = SyncStatus.PENDING_DELETE): List<EspecialidadeEntity>
 }

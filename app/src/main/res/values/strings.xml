@@ -14,4 +14,8 @@
     <string name="lista">Lista</string>
     <string name="menu_formulario">Formulário</string>
     <string name="configuraco">Configuração</string>
+    <string name="editar_paciente">Editar Paciente</string>
+    <string name="atualizar">Atualizar</string>
+    <string name="novo_paciente">Novo Paciente</string>
+    <string name="salvar">Salvar</string>
 </resources>
