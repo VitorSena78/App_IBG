@@ -164,18 +164,6 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
         findNavController().navigate(R.id.action_lista_to_editPaciente, bundle)
     }
 
-    override fun onDeletePaciente(paciente: Paciente) {
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Excluir Paciente")
-            .setMessage("Tem certeza que deseja excluir ${paciente.nome}? Esta ação não pode ser desfeita.")
-            .setPositiveButton("Excluir") { _, _ ->
-                viewModel.deletePaciente(paciente.id)
-                Toast.makeText(requireContext(), "Paciente excluído com sucesso", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
     override fun onCallPaciente(paciente: Paciente) {
         val intent = Intent(Intent.ACTION_DIAL).apply {
             data = Uri.parse("tel:${paciente.telefone}")

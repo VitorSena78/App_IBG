@@ -2,7 +2,29 @@
 <resources>
     <!-- butoes de seleção de especialidades -->
     <style name="customChipStyle" parent="Widget.MaterialComponents.Chip.Filter">
+        <!-- Tamanho da fonte -->
+        <item name="android:textSize">12sp</item>
 
+        <!-- Cor do texto -->
+        <item name="android:textColor">@color/primary</item>
+
+        <!-- Cor de fundo do chip -->
+        <item name="chipBackgroundColor">@android:color/white</item>
+
+        <!-- Largura da borda -->
+        <item name="chipStrokeWidth">0dp</item>
+
+        <!-- Raio das bordas -->
+        <item name="chipCornerRadius">24dp</item>
+
+        <!-- Ocultar ícone de fechar -->
+        <item name="closeIconVisible">false</item>
+
+        <!-- Padding interno -->
+        <item name="android:paddingLeft">24dp</item>
+        <item name="android:paddingRight">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
     </style>
 
 </resources>

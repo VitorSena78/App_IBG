@@ -84,10 +84,6 @@ class PacienteAdapter(
                         callback.onCallPaciente(paciente)
                         true
                     }
-                    R.id.action_delete -> {
-                        callback.onDeletePaciente(paciente)
-                        true
-                    }
                     else -> false
                 }
             }

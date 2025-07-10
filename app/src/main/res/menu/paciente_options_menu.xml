@@ -15,9 +15,5 @@
         android:title="Ligar"
         android:icon="@drawable/ic_call" />
 
-    <item
-        android:id="@+id/action_delete"
-        android:title="Excluir"
-        android:icon="@drawable/ic_delete" />
 
 </menu>

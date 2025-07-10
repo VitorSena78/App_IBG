@@ -2,7 +2,7 @@ package com.example.projeto_ibg3
 
 import android.os.Bundle
 import android.view.Menu
-import com.google.android.material.snackbar.Snackbar
+import android.view.MenuItem
 import com.google.android.material.navigation.NavigationView
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -11,6 +11,7 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.navigation.NavOptions
 import com.example.projeto_ibg3.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -34,7 +35,7 @@ class MainActivity : AppCompatActivity() {
 
         appBarConfiguration = AppBarConfiguration(
             setOf(
-                R.id.nav_paciente_formulario, R.id.nav_lista, R.id.nav_slideshow
+                R.id.nav_paciente_formulario, R.id.nav_lista, R.id.nav_config
             ), drawerLayout
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
@@ -44,6 +45,31 @@ class MainActivity : AppCompatActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
         return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                val navController = findNavController(R.id.nav_host_fragment_content_main)
+
+                android.util.Log.d("Navigation", "Current destination: ${navController.currentDestination?.id}")
+
+                if (navController.currentDestination?.id != R.id.nav_config) {
+                    navController.navigate(
+                        R.id.nav_config,
+                        null,
+                        NavOptions.Builder()
+                            .setPopUpTo(R.id.mobile_navigation, true)
+                            .setLaunchSingleTop(true)
+                            .build()
+                    )
+                }
+
+                binding.drawerLayout.closeDrawers()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

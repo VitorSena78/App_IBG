@@ -3,6 +3,7 @@ package com.example.projeto_ibg3.ui.pacientedetalhe
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -266,20 +267,12 @@ class PacienteDetalheFragment : Fragment() {
     }
 
     private fun createChip(text: String): Chip {
-        return Chip(requireContext()).apply {
+        val chip = Chip(ContextThemeWrapper(requireContext(), R.style.customChipStyle), null).apply {
             this.text = text
-            textSize = 12f
-            setTextColor(resources.getColor(R.color.primary, null))
-            chipBackgroundColor = resources.getColorStateList(android.R.color.white, null)
-            chipStrokeWidth = 0f
-            chipCornerRadius = 24f
-            isCloseIconVisible = false
             isClickable = false
             isCheckable = false
-
-            // Definir padding interno do chip
-            setPadding(24, 12, 24, 12)
         }
+        return chip
     }
 
     companion object {
