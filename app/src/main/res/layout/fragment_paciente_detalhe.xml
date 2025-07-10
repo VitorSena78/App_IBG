@@ -35,12 +35,12 @@
                     android:id="@+id/card_avatar"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
-                    android:layout_marginTop="20dp"
+                    app:cardBackgroundColor="@android:color/white"
                     app:cardCornerRadius="40dp"
                     app:cardElevation="0dp"
-                    app:cardBackgroundColor="@android:color/white"
+                    app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent">
+                    app:layout_constraintTop_toTopOf="parent">
 
                     <TextView
                         android:id="@+id/tv_initials"

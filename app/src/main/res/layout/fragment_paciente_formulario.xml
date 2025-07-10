@@ -10,15 +10,14 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="20dp"
         tools:context=".ui.pacienteformulario.PacienteFormularioFragment">
 
-        <!-- Card único integrado sem sombra -->
+        <!-- Card único integrado sem sombra ocupando toda a tela -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_integrated"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="20dp"
+            app:cardCornerRadius="0dp"
             app:cardElevation="0dp"
             app:cardBackgroundColor="@android:color/white"
             app:layout_constraintEnd_toEndOf="parent"
@@ -92,12 +91,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="18dp"
                         android:hint="Nome completo"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_person">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -117,12 +118,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="18dp"
                         android:hint="Nome da mãe"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_family">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -150,12 +153,14 @@
                             android:layout_marginEnd="14dp"
                             android:layout_weight="1.5"
                             android:hint="Data de nascimento"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeWidth="2dp"
-                            app:boxStrokeWidthFocused="3dp"
+                            app:boxCornerRadiusBottomEnd="20dp"
+                            app:boxCornerRadiusBottomStart="20dp"
+                            app:boxCornerRadiusTopEnd="20dp"
+                            app:boxCornerRadiusTopStart="20dp"
+                            app:boxStrokeColor="#E0E0E0"
+                            app:boxStrokeWidth="1dp"
+                            app:boxStrokeWidthFocused="2dp"
+                            app:boxBackgroundColor="#F8F9FA"
                             app:startIconDrawable="@drawable/ic_calendar">
 
                             <com.google.android.material.textfield.TextInputEditText
@@ -176,12 +181,14 @@
                             android:layout_marginStart="14dp"
                             android:layout_weight="1"
                             android:hint="Idade"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeWidth="2dp"
-                            app:boxStrokeWidthFocused="3dp">
+                            app:boxCornerRadiusBottomEnd="20dp"
+                            app:boxCornerRadiusBottomStart="20dp"
+                            app:boxCornerRadiusTopEnd="20dp"
+                            app:boxCornerRadiusTopStart="20dp"
+                            app:boxStrokeColor="#E0E0E0"
+                            app:boxStrokeWidth="1dp"
+                            app:boxStrokeWidthFocused="2dp"
+                            app:boxBackgroundColor="#F8F9FA">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/et_idade"
@@ -203,12 +210,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="18dp"
                         android:hint="CPF"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_badge">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -229,12 +238,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="18dp"
                         android:hint="Cartão SUS"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_medical_services">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -255,12 +266,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="18dp"
                         android:hint="Telefone"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_phone">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -281,12 +294,14 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="28dp"
                         android:hint="Endereço completo"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeWidth="2dp"
-                        app:boxStrokeWidthFocused="3dp"
+                        app:boxCornerRadiusBottomEnd="20dp"
+                        app:boxCornerRadiusBottomStart="20dp"
+                        app:boxCornerRadiusTopEnd="20dp"
+                        app:boxCornerRadiusTopStart="20dp"
+                        app:boxStrokeColor="#E0E0E0"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="2dp"
+                        app:boxBackgroundColor="#F8F9FA"
                         app:startIconDrawable="@drawable/ic_location_on">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -360,8 +375,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Cardiologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_pediatria"
@@ -369,8 +386,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Pediatria"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_clinico_geral"
@@ -378,8 +397,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Clínico Geral"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_neurologia"
@@ -387,8 +408,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Neurologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_ginecologia"
@@ -396,8 +419,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Ginecologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_dermatologia"
@@ -405,8 +430,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Dermatologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_ortopedia"
@@ -414,8 +441,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Ortopedia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_endocrinologia"
@@ -423,8 +452,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Endocrinologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_oftalmologia"
@@ -432,8 +463,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Oftalmologia"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chip_psiquiatria"
@@ -441,8 +474,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Psiquiatria"
-                                app:chipCornerRadius="16dp"
-                                app:chipStrokeWidth="2dp" />
+                                app:chipCornerRadius="20dp"
+                                app:chipStrokeWidth="1dp"
+                                app:chipStrokeColor="#E0E0E0"
+                                app:chipBackgroundColor="#F8F9FA" />
 
                         </com.google.android.material.chip.ChipGroup>
 
@@ -478,7 +513,7 @@
                             android:textColor="@color/primary"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            app:cornerRadius="16dp"
+                            app:cornerRadius="20dp"
                             app:icon="@drawable/ic_clear"
                             app:iconGravity="textStart"
                             app:iconPadding="8dp"
@@ -494,7 +529,7 @@
                             android:text="Salvar"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            app:cornerRadius="16dp"
+                            app:cornerRadius="20dp"
                             app:icon="@drawable/ic_save"
                             app:iconGravity="textStart"
                             app:iconPadding="8dp" />
