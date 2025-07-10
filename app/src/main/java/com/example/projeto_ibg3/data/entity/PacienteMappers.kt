@@ -9,9 +9,9 @@ fun PacienteEntity.toPaciente(): Paciente {
         id = this.id,
         serverId = this.serverId,
         nome = this.nome,
+        nomeDaMae = this.nomeDaMae,
         dataNascimento = Date(this.dataNascimento),
         idade = this.idade,
-        nomeDaMae = this.nomeDaMae,
         cpf = this.cpf,
         sus = this.sus,
         telefone = this.telefone,
@@ -24,7 +24,10 @@ fun PacienteEntity.toPaciente(): Paciente {
         saturacaoOxigenio = this.saturacaoOxigenio,
         peso = this.peso,
         altura = this.altura,
-        imc = this.imc
+        imc = this.imc,
+        createdAt = Date(this.createdAt),
+        updatedAt = Date(this.updatedAt),
+        syncStatus = this.syncStatus
     )
 }
 

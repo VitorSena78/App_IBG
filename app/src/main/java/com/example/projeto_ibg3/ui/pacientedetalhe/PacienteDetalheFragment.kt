@@ -6,8 +6,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +18,7 @@ import androidx.navigation.fragment.findNavController
 import com.example.projeto_ibg3.R
 import com.example.projeto_ibg3.model.Paciente
 import com.example.projeto_ibg3.model.Especialidade
+import com.example.projeto_ibg3.model.SyncStatus
 import com.example.projeto_ibg3.viewmodel.PacienteDetalheViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
@@ -45,8 +49,12 @@ class PacienteDetalheFragment : Fragment() {
     private lateinit var tvCreatedAt: TextView
     private lateinit var tvUpdatedAt: TextView
     private lateinit var btnEdit: MaterialButton
-    private lateinit var btnBack: MaterialButton
     private lateinit var chipGroupSpecialties: ChipGroup
+
+    // Views para status de sincronização
+    private lateinit var tvSyncStatus: TextView
+    private lateinit var ivSyncStatus: ImageView
+    private lateinit var viewSyncIndicator: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,12 +104,13 @@ class PacienteDetalheFragment : Fragment() {
         tvCreatedAt = view.findViewById(R.id.tv_created_at)
         tvUpdatedAt = view.findViewById(R.id.tv_updated_at)
         btnEdit = view.findViewById(R.id.btn_edit)
-        btnBack = view.findViewById(R.id.btn_back)
         chipGroupSpecialties = view.findViewById(R.id.chip_group_specialties)
 
-        btnBack.setOnClickListener {
-            findNavController().popBackStack()
-        }
+        //views para status de sincronização
+        tvSyncStatus = view.findViewById(R.id.tv_sync_status)
+        ivSyncStatus = view.findViewById(R.id.iv_sync_status)
+        viewSyncIndicator = view.findViewById(R.id.view_sync_indicator)
+
 
         btnEdit.setOnClickListener {
             val bundle = Bundle().apply {
@@ -136,8 +145,63 @@ class PacienteDetalheFragment : Fragment() {
         }.launchIn(lifecycleScope)
     }
 
+    private fun displaySyncStatus(paciente: Paciente) {
+        when (paciente.syncStatus) {
+            SyncStatus.SYNCED -> {
+                tvSyncStatus.text = "Sincronizado"
+                ivSyncStatus.setImageResource(R.drawable.ic_sync)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.success)
+            }
+            SyncStatus.PENDING_UPLOAD -> {
+                tvSyncStatus.text = "Pendente upload"
+                ivSyncStatus.setImageResource(R.drawable.ic_sync_disabled)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
+            }
+            SyncStatus.CONFLICT -> {
+                tvSyncStatus.text = "Conflito"
+                ivSyncStatus.setImageResource(R.drawable.ic_sync_problem)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+            }
+            // Adicione outros status conforme necessário
+            SyncStatus.PENDING_DELETE -> {
+                tvSyncStatus.text = "Pendente exclusão"
+                ivSyncStatus.setImageResource(R.drawable.ic_delete)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
+            }
+            SyncStatus.UPLOAD_FAILED -> {
+                tvSyncStatus.text = "Falha no upload"
+                ivSyncStatus.setImageResource(R.drawable.ic_error)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+            }
+            SyncStatus.DELETE_FAILED -> {
+                tvSyncStatus.text = "Falha na exclusão"
+                ivSyncStatus.setImageResource(R.drawable.ic_error)
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+            }
+            SyncStatus.SYNCING -> {
+                tvSyncStatus.text = "Sincronizando..."
+                ivSyncStatus.setImageResource(R.drawable.ic_sync) // ou android.R.drawable.ic_popup_sync
+                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+
+                // Adicionar animação de rotação para o ícone
+                val rotateAnimation = AnimationUtils.loadAnimation(requireContext(), android.R.anim.fade_in)
+                ivSyncStatus.startAnimation(rotateAnimation)
+            }
+        }
+    }
+
     private fun displayPacienteData(paciente: Paciente) {
-        println("PacienteDetalheFragment: Preenchendo dados do paciente = ${paciente.nome}")
+        println("=== DEBUG PACIENTE ===")
+        println("ID: ${paciente.id}")
+        println("Nome: ${paciente.nome}")
+        println("CreatedAt: ${paciente.createdAt}")
+        println("UpdatedAt: ${paciente.updatedAt}")
+        println("SyncStatus: ${paciente.syncStatus}")
+        println("======================")
+
+        // Debug das datas
+        println("PacienteDetalheFragment: createdAt = ${paciente.createdAt}")
+        println("PacienteDetalheFragment: updatedAt = ${paciente.updatedAt}")
 
         tvName.text = paciente.nome
         tvInitials.text = paciente.iniciais
@@ -158,17 +222,25 @@ class PacienteDetalheFragment : Fragment() {
         // Formatear datas de criação e atualização se existirem
         paciente.createdAt?.let {
             val dateTimeFormat = SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.getDefault())
-            tvCreatedAt.text = dateTimeFormat.format(it)
+            val formattedDate = dateTimeFormat.format(it)
+            println("PacienteDetalheFragment: Data criação formatada = $formattedDate")
+            tvCreatedAt.text = formattedDate
         } ?: run {
+            println("PacienteDetalheFragment: createdAt é null")
             tvCreatedAt.text = "Não informado"
         }
 
         paciente.updatedAt?.let {
             val dateTimeFormat = SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.getDefault())
-            tvUpdatedAt.text = dateTimeFormat.format(it)
+            val formattedDate = dateTimeFormat.format(it)
+            println("PacienteDetalheFragment: Data atualização formatada = $formattedDate")
+            tvUpdatedAt.text = formattedDate
         } ?: run {
+            println("PacienteDetalheFragment: updatedAt é null")
             tvUpdatedAt.text = "Não informado"
         }
+
+        displaySyncStatus(paciente)
     }
 
     private fun displayEspecialidades(especialidades: List<Especialidade>) {

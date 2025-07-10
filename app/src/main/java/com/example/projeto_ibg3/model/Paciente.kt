@@ -29,7 +29,9 @@ data class Paciente(
     val especialidades: List<Especialidade> = emptyList(),
     //Dados de controle
     val createdAt: Date? = null,
-    val updatedAt: Date? = null
+    val updatedAt: Date? = null,
+    // Campo de sincronização:
+    val syncStatus: SyncStatus = SyncStatus.SYNCED
 ) {
 
 
