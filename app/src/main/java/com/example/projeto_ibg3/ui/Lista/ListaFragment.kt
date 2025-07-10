@@ -159,7 +159,7 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
 
     override fun onEditPaciente(paciente: Paciente) {
         val bundle = Bundle().apply {
-            putLong("paciente_id", paciente.id) // Mudança aqui também
+            putLong("pacienteId", paciente.id) // Mudança aqui também
         }
         findNavController().navigate(R.id.action_lista_to_editPaciente, bundle)
     }

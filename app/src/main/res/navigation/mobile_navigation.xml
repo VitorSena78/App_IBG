@@ -14,7 +14,7 @@
             android:name="pacienteId"
             app:argType="long"
             android:defaultValue="0L" />
-        <!-- action -->
+        <!-- action para config -->
         <action
             android:id="@+id/action_formulario_to_config"
             app:destination="@id/nav_config" />
@@ -40,6 +40,11 @@
         <action
             android:id="@+id/action_lista_to_editPaciente"
             app:destination="@id/nav_paciente_formulario" />
+
+        <!-- Action para config -->
+        <action
+            android:id="@+id/action_lista_to_config"
+            app:destination="@id/nav_config" />
     </fragment>
 
     <fragment
@@ -57,11 +62,16 @@
         <action
             android:id="@+id/action_pacienteDetail_to_editPaciente"
             app:destination="@id/nav_paciente_formulario" />
+
+        <!-- Action para config -->
+        <action
+            android:id="@+id/action_detalhe_to_config"
+            app:destination="@id/nav_config" />
     </fragment>
 
     <fragment
         android:id="@+id/nav_config"
-        android:name="com.example.projeto_ibg3.ui.slideshow.ConfigFragment"
+        android:name="com.example.projeto_ibg3.ui.config.ConfigFragment"
         android:label="@string/menu_config"
         tools:layout="@layout/fragment_config" />
 

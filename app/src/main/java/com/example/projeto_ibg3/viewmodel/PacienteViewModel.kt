@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -49,17 +50,29 @@ class PacienteViewModel @Inject constructor(
     val error = _error.asStateFlow()
     val selectedPaciente = _selectedPaciente.asStateFlow()
 
+    init {
+        // Carregar pacientes automaticamente quando o ViewModel é criado
+        loadPacientes()
+    }
+
     fun loadPacientes() {
         viewModelScope.launch {
             try {
                 _isLoading.value = true
                 _error.value = null
-                // Coletar o Flow
-                pacienteRepository.getAllPacientes().collect { pacientes ->
-                    _allPacientes.value = pacientes
-                }
+
+                // Usar catch para capturar erros no Flow
+                pacienteRepository.getAllPacientes()
+                    .catch { exception ->
+                        _error.value = "Erro ao carregar pacientes: ${exception.message}"
+                        _allPacientes.value = emptyList()
+                    }
+                    .collect { pacientes ->
+                        _allPacientes.value = pacientes
+                    }
             } catch (e: Exception) {
                 _error.value = "Erro ao carregar pacientes: ${e.message}"
+                _allPacientes.value = emptyList()
             } finally {
                 _isLoading.value = false
             }
@@ -76,7 +89,7 @@ class PacienteViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
                 pacienteRepository.insertPaciente(paciente)
-                loadPacientes() // Recarregar lista
+                // Não recarregar toda a lista, o Flow já vai atualizar automaticamente
             } catch (e: Exception) {
                 _error.value = "Erro ao adicionar paciente: ${e.message}"
             } finally {
@@ -91,8 +104,7 @@ class PacienteViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
                 pacienteRepository.updatePaciente(paciente)
-                loadPacientes() // Recarregar lista
-                _selectedPaciente.value = paciente // Atualizar paciente selecionado
+                _selectedPaciente.value = paciente
             } catch (e: Exception) {
                 _error.value = "Erro ao atualizar paciente: ${e.message}"
             } finally {
@@ -107,7 +119,7 @@ class PacienteViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
                 pacienteRepository.deletePaciente(pacienteId)
-                loadPacientes() // Recarregar lista
+
                 // Se o paciente deletado era o selecionado, limpar seleção
                 if (_selectedPaciente.value?.id == pacienteId) {
                     _selectedPaciente.value = null

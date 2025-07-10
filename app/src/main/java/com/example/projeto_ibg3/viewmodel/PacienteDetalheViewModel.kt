@@ -47,7 +47,7 @@ class PacienteDetalheViewModel @Inject constructor(
                     _error.value = "Paciente não encontrado"
                 }
             } catch (e: Exception) {
-                _error.value = "Erro ao carregar paciente: ${e.message}"
+                _error.value = "Erro ao carregar paciente com ID $pacienteId: ${e.message}"
             } finally {
                 _isLoading.value = false
             }

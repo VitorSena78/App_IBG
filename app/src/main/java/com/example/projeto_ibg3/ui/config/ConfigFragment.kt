@@ -1,4 +1,4 @@
-package com.example.projeto_ibg3.ui.slideshow
+package com.example.projeto_ibg3.ui.config
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -6,10 +6,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
 import com.example.projeto_ibg3.databinding.FragmentConfigBinding
 
 class ConfigFragment : Fragment() {

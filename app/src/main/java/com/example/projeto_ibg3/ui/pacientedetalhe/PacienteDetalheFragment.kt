@@ -115,7 +115,7 @@ class PacienteDetalheFragment : Fragment() {
 
         btnEdit.setOnClickListener {
             val bundle = Bundle().apply {
-                putLong(ARG_PACIENTE_ID, pacienteId)
+                putLong("pacienteId", pacienteId)
             }
             findNavController().navigate(R.id.action_pacienteDetail_to_editPaciente, bundle)
         }

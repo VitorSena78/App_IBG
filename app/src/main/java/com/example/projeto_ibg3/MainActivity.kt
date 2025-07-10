@@ -11,7 +11,6 @@ import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.appcompat.app.AppCompatActivity
-import androidx.navigation.NavOptions
 import com.example.projeto_ibg3.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -33,9 +32,11 @@ class MainActivity : AppCompatActivity() {
         val navView: NavigationView = binding.navView
         val navController = findNavController(R.id.nav_host_fragment_content_main)
 
+        // Apenas destinos principais do drawer
         appBarConfiguration = AppBarConfiguration(
             setOf(
-                R.id.nav_paciente_formulario, R.id.nav_lista, R.id.nav_config
+                R.id.nav_paciente_formulario,
+                R.id.nav_lista
             ), drawerLayout
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
@@ -52,17 +53,26 @@ class MainActivity : AppCompatActivity() {
             R.id.action_settings -> {
                 val navController = findNavController(R.id.nav_host_fragment_content_main)
 
-                android.util.Log.d("Navigation", "Current destination: ${navController.currentDestination?.id}")
-
+                // Verificar se já não estamos na tela de configuração
                 if (navController.currentDestination?.id != R.id.nav_config) {
-                    navController.navigate(
-                        R.id.nav_config,
-                        null,
-                        NavOptions.Builder()
-                            .setPopUpTo(R.id.mobile_navigation, true)
-                            .setLaunchSingleTop(true)
-                            .build()
-                    )
+                    try {
+                        // Usar a action específica baseada no destino atual
+                        val actionId = when (navController.currentDestination?.id) {
+                            R.id.nav_paciente_formulario -> R.id.action_formulario_to_config
+                            R.id.nav_lista -> R.id.action_lista_to_config
+                            R.id.nav_paciente_detalhe -> R.id.action_detalhe_to_config
+                            else -> null
+                        }
+
+                        if (actionId != null) {
+                            navController.navigate(actionId)
+                        } else {
+                            // Fallback para navegação direta
+                            navController.navigate(R.id.nav_config)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("Navigation", "Erro ao navegar para configurações", e)
+                    }
                 }
 
                 binding.drawerLayout.closeDrawers()

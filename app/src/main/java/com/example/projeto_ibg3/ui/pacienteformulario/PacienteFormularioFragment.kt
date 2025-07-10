@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import com.example.projeto_ibg3.R
 import com.example.projeto_ibg3.data.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.dao.PacienteDao
@@ -26,7 +27,6 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.datepicker.MaterialDatePicker
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.forEach
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -38,7 +38,6 @@ class PacienteFormularioFragment : Fragment() {
     private var _binding: FragmentPacienteFormularioBinding? = null
     private val binding get() = _binding!!
 
-    // Injeções de dependência DENTRO da classe
     @Inject
     lateinit var pacienteDao: PacienteDao
 
@@ -52,6 +51,7 @@ class PacienteFormularioFragment : Fragment() {
     private var isEditMode = false
     private val calendar = Calendar.getInstance()
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    private var currentPaciente: PacienteEntity? = null
 
     // Componentes para especialidades
     private lateinit var chipGroupEspecialidades: ChipGroup
@@ -59,16 +59,8 @@ class PacienteFormularioFragment : Fragment() {
 
     // Lista de especialidades disponíveis
     private val especialidadesDisponiveis = listOf(
-        "Cardiologia",
-        "Pediatria",
-        "Clínico Geral",
-        "Neurologia",
-        "Ginecologia",
-        "Dermatologia",
-        "Ortopedia",
-        "Endocrinologia",
-        "Oftalmologia",
-        "Psiquiatria"
+        "Cardiologia", "Pediatria", "Clínico Geral", "Neurologia", "Ginecologia",
+        "Dermatologia", "Ortopedia", "Endocrinologia", "Oftalmologia", "Psiquiatria"
     )
 
     override fun onCreateView(
@@ -90,11 +82,14 @@ class PacienteFormularioFragment : Fragment() {
         pacienteId = arguments?.getLong("pacienteId", 0L) ?: 0L
         isEditMode = pacienteId > 0L
 
+        Log.d("PacienteForm", "onCreate: pacienteId=$pacienteId, isEditMode=$isEditMode")
+
         // Inicializar componentes
         setupComponents()
         setupUI()
         setupEspecialidades()
 
+        // IMPORTANTE: Só carregar dados se estiver em modo de edição
         if (isEditMode) {
             loadPacienteData()
         }
@@ -133,6 +128,198 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
+    private fun loadPacienteData() {
+        lifecycleScope.launch {
+            try {
+                Log.d("PacienteForm", "Carregando dados do paciente ID: $pacienteId")
+
+                // Buscar paciente pelo ID
+                val paciente = pacienteDao.getPacienteById(pacienteId)
+
+                if (paciente != null) {
+                    currentPaciente = paciente
+                    Log.d("PacienteForm", "Paciente encontrado: ${paciente.nome}")
+
+                    // Preencher campos com os dados do paciente
+                    binding.etNome.setText(paciente.nome)
+                    binding.etNomeMae.setText(paciente.nomeDaMae)
+                    binding.etCpf.setText(paciente.cpf)
+                    binding.etSus.setText(paciente.sus)
+                    binding.etTelefone.setText(paciente.telefone)
+                    binding.etEndereco.setText(paciente.endereco)
+                    binding.etIdade.setText(paciente.idade.toString())
+
+                    // Formatar e exibir data de nascimento
+                    val dataFormatada = dateFormat.format(Date(paciente.dataNascimento))
+                    binding.etDataNascimento.setText(dataFormatada)
+
+                    // Carregar especialidades do paciente
+                    loadPacienteEspecialidades()
+
+                } else {
+                    Log.e("PacienteForm", "Paciente não encontrado com ID: $pacienteId")
+                    Toast.makeText(requireContext(), "Paciente não encontrado", Toast.LENGTH_SHORT).show()
+                    findNavController().navigateUp()
+                }
+
+            } catch (e: Exception) {
+                Log.e("PacienteForm", "Erro ao carregar dados do paciente", e)
+                Toast.makeText(requireContext(), "Erro ao carregar dados: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun loadPacienteEspecialidades() {
+        lifecycleScope.launch {
+            try {
+                // Buscar especialidades do paciente
+                val especialidadesDoPaciente = pacienteEspecialidadeDao.getEspecialidadeEntitiesByPacienteId(pacienteId)
+
+                Log.d("PacienteForm", "Especialidades do paciente: ${especialidadesDoPaciente.size}")
+
+                // Marcar as especialidades que o paciente possui
+                especialidadesDoPaciente.forEach { especialidade ->
+                    Log.d("PacienteForm", "Marcando especialidade: ${especialidade.nome}")
+                    markEspecialidadeAsSelected(especialidade.nome)
+                }
+
+            } catch (e: Exception) {
+                Log.e("PacienteForm", "Erro ao carregar especialidades do paciente", e)
+            }
+        }
+    }
+
+    private fun markEspecialidadeAsSelected(especialidade: String) {
+        for (i in 0 until chipGroupEspecialidades.childCount) {
+            val chip = chipGroupEspecialidades.getChildAt(i) as Chip
+            if (chip.text.toString() == especialidade) {
+                chip.isChecked = true
+                Log.d("PacienteForm", "Especialidade marcada: $especialidade")
+                break
+            }
+        }
+    }
+
+    private fun updatePaciente() {
+        Log.d("PacienteForm", "Iniciando atualização do paciente ID: $pacienteId")
+
+        if (validateForm()) {
+            // Obter dados do formulário
+            val nome = binding.etNome.text?.toString()?.trim() ?: ""
+            val nomeMae = binding.etNomeMae.text?.toString()?.trim() ?: ""
+            val dataNascimento = binding.etDataNascimento.text?.toString()?.trim() ?: ""
+            val cpf = binding.etCpf.text?.toString()?.trim() ?: ""
+            val sus = binding.etSus.text?.toString()?.trim() ?: ""
+            val telefone = binding.etTelefone.text?.toString()?.trim() ?: ""
+            val endereco = binding.etEndereco.text?.toString()?.trim() ?: ""
+            val especialidadesSelecionadas = getSelectedEspecialidades()
+
+            // Converter data de nascimento para timestamp
+            val dataNascimentoTimestamp = convertDateToTimestamp(dataNascimento)
+            val idade = calculateAgeFromDate(dataNascimento)
+
+            lifecycleScope.launch {
+                try {
+                    // Validar campos únicos (excluindo o paciente atual)
+                    if (!validateUniqueFieldsForUpdate(cpf, sus.ifEmpty { null })) {
+                        return@launch
+                    }
+
+                    // Atualizar entidade do paciente
+                    currentPaciente?.let { paciente ->
+                        val pacienteAtualizado = paciente.copy(
+                            nome = nome,
+                            nomeDaMae = nomeMae,
+                            dataNascimento = dataNascimentoTimestamp,
+                            idade = idade,
+                            cpf = cpf,
+                            sus = sus,
+                            telefone = telefone,
+                            endereco = endereco,
+                            syncStatus = SyncStatus.PENDING_UPLOAD,
+                            lastModified = System.currentTimeMillis()
+                        )
+
+                        // Atualizar no banco
+                        pacienteDao.updatePaciente(pacienteAtualizado)
+
+                        // Atualizar relacionamentos com especialidades
+                        updateEspecialidadesRelationships(pacienteId, especialidadesSelecionadas)
+
+                        Toast.makeText(
+                            requireContext(),
+                            "Paciente atualizado com sucesso!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        // Voltar para a tela anterior
+                        findNavController().navigateUp()
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("PacienteForm", "Erro ao atualizar paciente", e)
+                    Toast.makeText(
+                        requireContext(),
+                        "Erro ao atualizar paciente: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun updateEspecialidadesRelationships(pacienteId: Long, especialidadesSelecionadas: List<String>) {
+        try {
+            // Remover todas as especialidades atuais do paciente
+            pacienteEspecialidadeDao.deleteByPacienteId(pacienteId)
+
+            // Adicionar as novas especialidades selecionadas
+            especialidadesSelecionadas.forEach { nomeEspecialidade ->
+                val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
+
+                if (especialidade != null) {
+                    val pacienteEspecialidade = PacienteEspecialidadeEntity(
+                        pacienteId = pacienteId,
+                        especialidadeId = especialidade.id,
+                        dataAtendimento = System.currentTimeMillis()
+                    )
+
+                    pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
+                    Log.d("PacienteForm", "Relacionamento atualizado: Paciente $pacienteId - Especialidade ${especialidade.id}")
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e("PacienteForm", "Erro ao atualizar relacionamentos com especialidades", e)
+            throw e
+        }
+    }
+
+    private suspend fun validateUniqueFieldsForUpdate(cpf: String, sus: String?): Boolean {
+        // Limpar erros anteriores
+        binding.tilCpf.error = null
+        binding.tilSus.error = null
+
+        // Verificar se CPF já existe (excluindo o paciente atual)
+        val existingPacienteByCpf = pacienteDao.getPacienteByCpf(cpf)
+        if (existingPacienteByCpf != null && existingPacienteByCpf.id != pacienteId) {
+            binding.tilCpf.error = "CPF já cadastrado por outro paciente"
+            return false
+        }
+
+        // Verificar se SUS já existe (excluindo o paciente atual)
+        if (!sus.isNullOrEmpty()) {
+            val existingPacienteBySus = pacienteDao.getPacienteBySus(sus)
+            if (existingPacienteBySus != null && existingPacienteBySus.id != pacienteId) {
+                binding.tilSus.error = "SUS já cadastrado por outro paciente"
+                return false
+            }
+        }
+
+        return true
+    }
+
+    // Restante do código permanece igual...
     private fun initializeEspecialidades() {
         lifecycleScope.launch {
             try {
@@ -141,40 +328,18 @@ class PacienteFormularioFragment : Fragment() {
                 if (count == 0) {
                     Log.d("PacienteForm", "Inserindo especialidades iniciais...")
 
-                    val especialidadesParaInserir = listOf(
-                        "Cardiologia",
-                        "Pediatria",
-                        "Clínico Geral",
-                        "Neurologia",
-                        "Ginecologia",
-                        "Dermatologia",
-                        "Ortopedia",
-                        "Endocrinologia",
-                        "Oftalmologia",
-                        "Psiquiatria"
-                    )
-
-                    val especialidadesEntities = especialidadesParaInserir.map { nome ->
+                    val especialidadesEntities = especialidadesDisponiveis.map { nome ->
                         EspecialidadeEntity(
                             nome = nome,
-                            serverId = null, // Será preenchido quando sincronizar com a API
-                            syncStatus = SyncStatus.SYNCED, // Como são dados locais iniciais
+                            serverId = null,
+                            syncStatus = SyncStatus.SYNCED,
                             lastModified = System.currentTimeMillis(),
                             isDeleted = false
                         )
                     }
 
-                    // Inserir todas as especialidades de uma vez
                     especialidadeDao.insertEspecialidades(especialidadesEntities)
-
                     Log.d("PacienteForm", "Especialidades inseridas com sucesso: ${especialidadesEntities.size}")
-
-                    // Verificar se foram inseridas corretamente
-                    val novoCount = especialidadeDao.getEspecialidadesCount()
-                    Log.d("PacienteForm", "Total de especialidades no banco: $novoCount")
-
-                } else {
-                    Log.d("PacienteForm", "Especialidades já existem no banco: $count")
                 }
 
             } catch (e: Exception) {
@@ -183,35 +348,13 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
-    // Método auxiliar para debug (opcional)
-    private fun debugEspecialidades() {
-        lifecycleScope.launch {
-            try {
-                val count = especialidadeDao.getEspecialidadesCount()
-                Log.d("PacienteForm", "=== DEBUG ESPECIALIDADES ===")
-                Log.d("PacienteForm", "Total no banco: $count")
-
-                // Como getAllEspecialidades() retorna Flow, precisamos coletar
-                especialidadeDao.getAllEspecialidades().collect { especialidades ->
-                    especialidades.forEach { esp ->
-                        Log.d("PacienteForm", "ID: ${esp.id}, Nome: ${esp.nome}, Deleted: ${esp.isDeleted}")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("PacienteForm", "Erro no debug de especialidades", e)
-            }
-        }
-    }
-
     private fun setupEspecialidades() {
-        // Limpar chips existentes
         chipGroupEspecialidades.removeAllViews()
 
-        // Adicionar chips dinamicamente baseado nas especialidades habilitadas
         especialidadesDisponiveis.forEach { especialidade ->
             val isEnabled = sharedPreferences.getBoolean(
                 "especialidade_${especialidade.lowercase().replace(" ", "_")}",
-                true // Por padrão, todas estão habilitadas
+                true
             )
 
             if (isEnabled) {
@@ -228,17 +371,14 @@ class PacienteFormularioFragment : Fragment() {
             isCheckable = true
             isChecked = false
 
-            // Estilo do chip (você pode personalizar no styles.xml)
             chipCornerRadius = 32f
             chipStrokeWidth = 4f
             chipStrokeColor = ContextCompat.getColorStateList(requireContext(), R.color.primary)
             chipBackgroundColor = ContextCompat.getColorStateList(requireContext(), R.color.white)
             setTextColor(ContextCompat.getColorStateList(requireContext(), R.color.primary))
 
-            // Listener para mudanças de seleção
-            setOnCheckedChangeListener { _, isChecked ->
+            setOnCheckedChangeListener { _, _ ->
                 hideEspecialidadesError()
-                Log.d("PacienteForm", "Especialidade $especialidade ${if (isChecked) "selecionada" else "desmarcada"}")
             }
         }
         return chip
@@ -282,7 +422,6 @@ class PacienteFormularioFragment : Fragment() {
 
                     var age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR)
 
-                    // Verificar se ainda não fez aniversário este ano
                     if (today.get(Calendar.DAY_OF_YEAR) < birth.get(Calendar.DAY_OF_YEAR)) {
                         age--
                     }
@@ -290,7 +429,6 @@ class PacienteFormularioFragment : Fragment() {
                     binding.etIdade.setText(age.toString())
                 }
             } catch (e: Exception) {
-                // Em caso de erro na conversão da data
                 binding.etIdade.setText("")
             }
         } else {
@@ -299,7 +437,6 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     private fun clearForm() {
-        // Limpar campos de texto
         binding.etNome.setText("")
         binding.etNomeMae.setText("")
         binding.etDataNascimento.setText("")
@@ -309,37 +446,12 @@ class PacienteFormularioFragment : Fragment() {
         binding.etTelefone.setText("")
         binding.etEndereco.setText("")
 
-        // Desmarcar todos os chips de especialidades
         for (i in 0 until chipGroupEspecialidades.childCount) {
             val chip = chipGroupEspecialidades.getChildAt(i) as Chip
             chip.isChecked = false
         }
 
-        // Esconder erro das especialidades
         hideEspecialidadesError()
-    }
-
-    private fun loadPacienteData() {
-        // Carregar dados do paciente e preencher campos
-        // pacienteRepository.getPacienteById(pacienteId) { paciente ->
-        //     binding.etNome.setText(paciente.name)
-        //     binding.etIdade.setText(paciente.age.toString())
-        //
-        //     // Marcar especialidades selecionadas
-        //     paciente.especialidades?.forEach { especialidade ->
-        //         markEspecialidadeAsSelected(especialidade)
-        //     }
-        // }
-    }
-
-    private fun markEspecialidadeAsSelected(especialidade: String) {
-        for (i in 0 until chipGroupEspecialidades.childCount) {
-            val chip = chipGroupEspecialidades.getChildAt(i) as Chip
-            if (chip.text.toString() == especialidade) {
-                chip.isChecked = true
-                break
-            }
-        }
     }
 
     private fun createPacienteWithValidation() {
@@ -349,12 +461,10 @@ class PacienteFormularioFragment : Fragment() {
 
             lifecycleScope.launch {
                 try {
-                    // Validar campos únicos
                     if (!validateUniqueFields(cpf, sus.ifEmpty { null })) {
                         return@launch
                     }
 
-                    // Continuar com o salvamento...
                     createPaciente()
 
                 } catch (e: Exception) {
@@ -370,9 +480,7 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     private fun createPaciente() {
-        // Validar campos
         if (validateForm()) {
-            // Obter dados do formulário - CORREÇÃO: garantir que não sejam null
             val nome = binding.etNome.text?.toString()?.trim() ?: ""
             val nomeMae = binding.etNomeMae.text?.toString()?.trim() ?: ""
             val dataNascimento = binding.etDataNascimento.text?.toString()?.trim() ?: ""
@@ -382,13 +490,9 @@ class PacienteFormularioFragment : Fragment() {
             val endereco = binding.etEndereco.text?.toString()?.trim() ?: ""
             val especialidadesSelecionadas = getSelectedEspecialidades()
 
-            // Converter data de nascimento para timestamp
             val dataNascimentoTimestamp = convertDateToTimestamp(dataNascimento)
-
-            // Calcular idade
             val idade = calculateAgeFromDate(dataNascimento)
 
-            // Criar entidade do paciente
             val pacienteEntity = PacienteEntity(
                 nome = nome,
                 nomeDaMae = nomeMae.ifEmpty { "" },
@@ -403,27 +507,18 @@ class PacienteFormularioFragment : Fragment() {
                 isDeleted = false
             )
 
-            // Salvar no banco de dados usando coroutines
             lifecycleScope.launch {
                 try {
-                    // Inserir paciente e obter o ID gerado
                     val pacienteId = pacienteDao.insertPaciente(pacienteEntity)
-
-                    // Salvar relacionamentos com especialidades
                     saveEspecialidadesRelationships(pacienteId, especialidadesSelecionadas)
 
-                    // Mostrar mensagem de sucesso
                     Toast.makeText(
                         requireContext(),
                         "Paciente salvo com sucesso!",
                         Toast.LENGTH_SHORT
                     ).show()
 
-                    // Limpar formulário ou navegar para outra tela
                     clearForm()
-
-                    // Navegar de volta ou para lista de pacientes
-                    // findNavController().navigateUp()
 
                 } catch (e: Exception) {
                     Log.e("PacienteForm", "Erro ao salvar paciente", e)
@@ -439,29 +534,17 @@ class PacienteFormularioFragment : Fragment() {
 
     private suspend fun saveEspecialidadesRelationships(pacienteId: Long, especialidadesSelecionadas: List<String>) {
         try {
-            //Para cada especialidade selecionada, buscar o ID da especialidade e criar o relacionamento
             especialidadesSelecionadas.forEach { nomeEspecialidade ->
-                //Buscar a especialidade pelo nome
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                 if (especialidade != null) {
-                    //Criar relacionamento
                     val pacienteEspecialidade = PacienteEspecialidadeEntity(
                         pacienteId = pacienteId,
                         especialidadeId = especialidade.id,
-                        //converter para timestamp
                         dataAtendimento = System.currentTimeMillis()
-                        // dataAtendimento = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                     )
 
-                    // Inserir relacionamento
                     pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
-
-                    val todas = pacienteEspecialidadeDao.getAll()
-                    todas.forEach {
-                        Log.d("PacienteForm", "Relacionamento salvo: ${it.pacienteId} -> ${it.especialidadeId}")
-                    }
-
                     Log.d("PacienteForm", "Relacionamento salvo: Paciente $pacienteId - Especialidade ${especialidade.id}")
                 } else {
                     Log.w("PacienteForm", "Especialidade não encontrada: $nomeEspecialidade")
@@ -473,7 +556,6 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
-    // Função auxiliar para converter data string para timestamp
     private fun convertDateToTimestamp(dateString: String): Long {
         return try {
             val date = dateFormat.parse(dateString)
@@ -484,7 +566,6 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
-    // Função auxiliar para calcular idade a partir da data string
     private fun calculateAgeFromDate(dateString: String): Int {
         return try {
             val birthDate = dateFormat.parse(dateString)
@@ -495,7 +576,6 @@ class PacienteFormularioFragment : Fragment() {
 
                 var age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR)
 
-                // Verificar se ainda não fez aniversário este ano
                 if (today.get(Calendar.DAY_OF_YEAR) < birth.get(Calendar.DAY_OF_YEAR)) {
                     age--
                 }
@@ -509,16 +589,13 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
-    // Função para validar se CPF e SUS não estão duplicados (opcional)
     private suspend fun validateUniqueFields(cpf: String, sus: String?): Boolean {
-        // Verificar se CPF já existe
         val existingPacienteByCpf = pacienteDao.getPacienteByCpf(cpf)
         if (existingPacienteByCpf != null) {
             binding.tilCpf.error = "CPF já cadastrado"
             return false
         }
 
-        // Verificar se SUS já existe (se não for vazio)
         if (!sus.isNullOrEmpty()) {
             val existingPacienteBySus = pacienteDao.getPacienteBySus(sus)
             if (existingPacienteBySus != null) {
@@ -528,15 +605,6 @@ class PacienteFormularioFragment : Fragment() {
         }
 
         return true
-    }
-
-    private fun updatePaciente() {
-        // Lógica para atualizar paciente existente
-        if (validateForm()) {
-            val especialidadesSelecionadas = getSelectedEspecialidades()
-            // Implementar lógica de atualização com especialidades
-            Log.d("PacienteForm", "Atualizando com especialidades: $especialidadesSelecionadas")
-        }
     }
 
     private fun getSelectedEspecialidades(): List<String> {
@@ -555,31 +623,26 @@ class PacienteFormularioFragment : Fragment() {
     private fun validateForm(): Boolean {
         var isValid = true
 
-        // Validar nome
+        // Limpar erros anteriores
+        binding.tilNome.error = null
+        binding.tilCpf.error = null
+        binding.tilDataNascimento.error = null
+
         if (binding.etNome.text?.toString()?.trim().isNullOrEmpty()) {
             binding.tilNome.error = "Nome é obrigatório"
             isValid = false
-        } else {
-            binding.tilNome.error = null
         }
 
-        // Validar CPF
         if (binding.etCpf.text?.toString()?.trim().isNullOrEmpty()) {
             binding.tilCpf.error = "CPF é obrigatório"
             isValid = false
-        } else {
-            binding.tilCpf.error = null
         }
 
-        // Validar data de nascimento
         if (binding.etDataNascimento.text?.toString()?.trim().isNullOrEmpty()) {
             binding.tilDataNascimento.error = "Data de nascimento é obrigatória"
             isValid = false
-        } else {
-            binding.tilDataNascimento.error = null
         }
 
-        // Validar especialidades (pelo menos uma deve ser selecionada)
         val selectedEspecialidades = getSelectedEspecialidades()
         if (selectedEspecialidades.isEmpty()) {
             showEspecialidadesError("Selecione pelo menos uma especialidade")
@@ -591,7 +654,6 @@ class PacienteFormularioFragment : Fragment() {
         return isValid
     }
 
-    // Método público para atualizar especialidades (chamado quando configurações mudam)
     fun refreshEspecialidades() {
         setupEspecialidades()
     }
