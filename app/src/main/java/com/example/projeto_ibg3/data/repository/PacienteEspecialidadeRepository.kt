@@ -1,107 +1,74 @@
 package com.example.projeto_ibg3.data.repository
 
-import com.example.projeto_ibg3.data.dao.PacienteEspecialidadeDao
-import com.example.projeto_ibg3.data.entity.PacienteEspecialidadeEntity
-import com.example.projeto_ibg3.model.PacienteEspecialidade
+import com.example.projeto_ibg3.domain.model.Especialidade
+import com.example.projeto_ibg3.domain.model.PacienteEspecialidade
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import java.util.Date
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class PacienteEspecialidadeRepository @Inject constructor(
-    private val pacienteEspecialidadeDao: PacienteEspecialidadeDao
-) {
+interface PacienteEspecialidadeRepository {
 
-    fun getAllPacienteEspecialidades(): Flow<List<PacienteEspecialidade>> {
-        return pacienteEspecialidadeDao.getAllPacienteEspecialidades().map { entities ->
-            entities.map { it.toPacienteEspecialidade() }
-        }
-    }
+    // ==================== FUNÇÕES BÁSICAS ====================
 
-    suspend fun getEspecialidadesByPacienteId(pacienteId: Long): List<PacienteEspecialidade> {
-        return pacienteEspecialidadeDao.getEspecialidadesByPacienteId(pacienteId)
-            .map { it.toPacienteEspecialidade() }
-    }
+    fun getAllPacienteEspecialidades(): Flow<List<PacienteEspecialidade>>
 
-    suspend fun getPacientesByEspecialidadeId(especialidadeId: Long): List<PacienteEspecialidade> {
-        return pacienteEspecialidadeDao.getPacientesByEspecialidadeId(especialidadeId)
-            .map { it.toPacienteEspecialidade() }
-    }
+    suspend fun getEspecialidadesByPacienteId(pacienteLocalId: String): List<Especialidade>
 
-    suspend fun getPacienteEspecialidade(pacienteId: Long, especialidadeId: Long): PacienteEspecialidade? {
-        return pacienteEspecialidadeDao.getPacienteEspecialidade(pacienteId, especialidadeId)
-            ?.toPacienteEspecialidade()
-    }
+    suspend fun getPacientesByEspecialidadeId(especialidadeLocalId: String): List<PacienteEspecialidade>
 
-    suspend fun insertPacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade) {
-        pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade.toEntity())
-    }
+    suspend fun getPacienteEspecialidade(pacienteLocalId: String, especialidadeLocalId: String): PacienteEspecialidade?
 
-    suspend fun insertPacienteEspecialidades(pacienteEspecialidades: List<PacienteEspecialidade>) {
-        val entities = pacienteEspecialidades.map { it.toEntity() }
-        pacienteEspecialidadeDao.insertPacienteEspecialidades(entities)
-    }
+    // ==================== OPERAÇÕES DE CRUD ====================
 
-    suspend fun updatePacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade) {
-        pacienteEspecialidadeDao.updatePacienteEspecialidade(pacienteEspecialidade.toEntity())
-    }
+    suspend fun insertPacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade)
 
-    suspend fun deletePacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade) {
-        pacienteEspecialidadeDao.deletePacienteEspecialidade(pacienteEspecialidade.toEntity())
-    }
+    suspend fun insertPacienteEspecialidades(pacienteEspecialidades: List<PacienteEspecialidade>)
 
-    suspend fun deleteByIds(pacienteId: Long, especialidadeId: Long) {
-        pacienteEspecialidadeDao.deleteByIds(pacienteId, especialidadeId)
-    }
+    suspend fun updatePacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade)
 
-    suspend fun deleteAllEspecialidadesByPacienteId(pacienteId: Long) {
-        pacienteEspecialidadeDao.deleteAllEspecialidadesByPacienteId(pacienteId)
-    }
+    suspend fun deletePacienteEspecialidade(pacienteEspecialidade: PacienteEspecialidade)
 
-    suspend fun getAtendimentosByDateRange(dataInicio: String, dataFim: String): List<PacienteEspecialidade> {
-        return pacienteEspecialidadeDao.getAtendimentosByDateRange(dataInicio, dataFim)
-            .map { it.toPacienteEspecialidade() }
-    }
+    suspend fun deleteByIds(pacienteLocalId: String, especialidadeLocalId: String)
 
-    suspend fun getAtendimentosCountByEspecialidade(especialidadeId: Long): Int {
-        return pacienteEspecialidadeDao.getAtendimentosCountByEspecialidade(especialidadeId)
-    }
+    suspend fun deleteAllEspecialidadesByPacienteId(pacienteLocalId: String)
 
-    // Método para sincronizar especialidades de um paciente
-    suspend fun syncPacienteEspecialidades(pacienteId: Long, especialidadeIds: List<Long>) {
-        // Remover todas as especialidades existentes do paciente
-        deleteAllEspecialidadesByPacienteId(pacienteId)
+    // ==================== MÉTODOS PARA O VIEWMODEL ====================
 
-        // Adicionar as novas especialidades
-        val novasAssociacoes = especialidadeIds.map { especialidadeId ->
-            PacienteEspecialidade(
-                pacienteId = pacienteId,
-                especialidadeId = especialidadeId,
-                dataAtendimento = null // ou Date() se necessário
-            )
-        }
+    suspend fun addEspecialidadeToPaciente(pacienteLocalId: String, especialidadeLocalId: String)
 
-        if (novasAssociacoes.isNotEmpty()) {
-            insertPacienteEspecialidades(novasAssociacoes)
-        }
-    }
-}
+    suspend fun removeEspecialidadeFromPaciente(pacienteLocalId: String, especialidadeLocalId: String)
 
-// Extensões para conversão entre Entity e Model
-private fun PacienteEspecialidadeEntity.toPacienteEspecialidade(): PacienteEspecialidade {
-    return PacienteEspecialidade(
-        pacienteId = this.pacienteId,
-        especialidadeId = this.especialidadeId,
-        dataAtendimento = this.dataAtendimento?.let { Date(it) } // Converte Long para Date
-    )
-}
+    // ==================== CONSULTAS POR DATA ====================
 
-private fun PacienteEspecialidade.toEntity(): PacienteEspecialidadeEntity {
-    return PacienteEspecialidadeEntity(
-        pacienteId = this.pacienteId,
-        especialidadeId = this.especialidadeId,
-        dataAtendimento = this.dataAtendimento?.time // Converte Date para Long
-    )
+    suspend fun getAtendimentosByDateRange(dataInicio: String, dataFim: String): List<PacienteEspecialidade>
+
+    suspend fun getAtendimentosCountByEspecialidade(especialidadeLocalId: String): Int
+
+    // ==================== SINCRONIZAÇÃO ====================
+
+    suspend fun syncPacienteEspecialidades(pacienteLocalId: String, especialidadeIds: List<String>)
+
+    suspend fun getPendingSync(): List<PacienteEspecialidade>
+
+    suspend fun getConflicts(): List<PacienteEspecialidade>
+
+    suspend fun markAsSynced(pacienteLocalId: String, especialidadeLocalId: String)
+
+    suspend fun markAsConflict(pacienteLocalId: String, especialidadeLocalId: String)
+
+    // ==================== FUNÇÕES AUXILIARES ====================
+
+    suspend fun softDeletePacienteEspecialidade(pacienteLocalId: String, especialidadeLocalId: String)
+
+    suspend fun restorePacienteEspecialidade(pacienteLocalId: String, especialidadeLocalId: String)
+
+    // ==================== ESTATÍSTICAS ====================
+
+    suspend fun countPendingUploads(): Int
+
+    suspend fun countConflicts(): Int
+
+    // ==================== LIMPEZA ====================
+
+    suspend fun cleanupDeletedSynced()
+
+    suspend fun cleanupOldSynced(daysOld: Int = 30)
 }

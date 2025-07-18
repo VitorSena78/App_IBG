@@ -10,7 +10,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        tools:context=".ui.pacienteformulario.PacienteFormularioFragment">
+        tools:context=".presentation.ui.formulario.PacienteFormularioFragment">
 
         <!-- Card único integrado sem sombra ocupando toda a tela -->
         <com.google.android.material.card.MaterialCardView

@@ -1,6 +1,6 @@
 package com.example.projeto_ibg3.di
 
-import com.example.projeto_ibg3.data.remote.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.PacienteApiService
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module

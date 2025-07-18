@@ -3,8 +3,11 @@ package com.example.projeto_ibg3.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 data class PacienteDto(
-    @SerializedName("id")
-    val id: Long,
+    @SerializedName("server_id")
+    val serverId: Long? = null, // Pode ser null para novos pacientes
+
+    @SerializedName("local_id")
+    val localId: String, // Para sincronização
 
     @SerializedName("nome")
     val nome: String,
@@ -61,5 +64,18 @@ data class PacienteDto(
     val createdAt: String? = null,
 
     @SerializedName("updated_at")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+
+    // NOVOS: Campos para sincronização
+    @SerializedName("device_id")
+    val deviceId: String? = null,
+
+    @SerializedName("version")
+    val version: Int = 1,
+
+    @SerializedName("last_sync_timestamp")
+    val lastSyncTimestamp: Long? = null,
+
+    @SerializedName("is_deleted")
+    val isDeleted: Boolean = false
 )

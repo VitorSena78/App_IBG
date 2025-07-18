@@ -2,11 +2,11 @@ package com.example.projeto_ibg3.di
 
 import android.content.Context
 import androidx.room.Room
-import com.example.projeto_ibg3.data.dao.EspecialidadeDao
-import com.example.projeto_ibg3.data.dao.PacienteDao
-import com.example.projeto_ibg3.data.dao.PacienteEspecialidadeDao
-import com.example.projeto_ibg3.data.dao.SyncMetadataDao
-import com.example.projeto_ibg3.data.database.AppDatabase
+import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
+import com.example.projeto_ibg3.data.local.database.dao.PacienteDao
+import com.example.projeto_ibg3.data.local.database.dao.PacienteEspecialidadeDao
+import com.example.projeto_ibg3.data.local.database.dao.SyncMetadataDao
+import com.example.projeto_ibg3.data.local.database.AppDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
