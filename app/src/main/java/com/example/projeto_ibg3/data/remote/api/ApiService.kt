@@ -8,7 +8,7 @@ import retrofit2.http.*
 import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
 import com.example.projeto_ibg3.data.remote.dto.PacienteEspecialidadeDTO
 
-interface PacienteApiService {
+interface ApiService {
 
     // ========== HEALTH CHECK ==========
     @GET("health")

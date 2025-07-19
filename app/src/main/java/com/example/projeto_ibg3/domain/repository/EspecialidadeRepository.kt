@@ -1,15 +1,16 @@
 package com.example.projeto_ibg3.domain.repository
 
+import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
 import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import kotlinx.coroutines.flow.Flow
 
 interface EspecialidadeRepository {
     // Operações básicas
-    fun getAllEspecialidades(): Flow<List<Especialidade>>
-    suspend fun getEspecialidadeById(localId: String): Especialidade?
-    suspend fun getEspecialidadeByServerId(serverId: Long): Especialidade?
-    suspend fun getEspecialidadeByName(nome: String): Especialidade?
+    fun getAllEspecialidades(): Flow<List<EspecialidadeEntity>>
+    suspend fun getEspecialidadeById(localId: String): EspecialidadeEntity?
+    suspend fun getEspecialidadeByServerId(serverId: Long?): EspecialidadeEntity?
+    suspend fun getEspecialidadeByName(nome: String): EspecialidadeEntity?
     suspend fun insertEspecialidade(especialidade: Especialidade): String
     suspend fun updateEspecialidade(especialidade: Especialidade)
     suspend fun deleteEspecialidade(localId: String)
@@ -19,13 +20,13 @@ interface EspecialidadeRepository {
     suspend fun getEspecialidadeCount(): Int
 
     // Sincronização
-    suspend fun getPendingSyncItems(): List<Especialidade>
-    suspend fun getPendingUploads(): List<Especialidade>
-    suspend fun getPendingDeletions(): List<Especialidade>
+    suspend fun getPendingSyncItems(): List<EspecialidadeEntity>
+    suspend fun getPendingUploads(): List<EspecialidadeEntity>
+    suspend fun getPendingDeletions(): List<EspecialidadeEntity>
     suspend fun markAsSynced(localId: String, serverId: Long)
     suspend fun markAsSyncFailed(localId: String, error: String)
     suspend fun updateSyncStatus(localId: String, status: SyncStatus)
-    suspend fun getModifiedSince(timestamp: Long): List<Especialidade>
+    suspend fun getModifiedSince(timestamp: Long): List<EspecialidadeEntity>
     suspend fun hasPendingChanges(): Boolean
 
     // Validação

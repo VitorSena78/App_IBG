@@ -1,4 +1,4 @@
-package com.example.projeto_ibg3.data.repository
+package com.example.projeto_ibg3.domain.repository
 
 import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.PacienteEspecialidade

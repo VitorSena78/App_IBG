@@ -2,7 +2,7 @@ package com.example.projeto_ibg3.data.repository.impl
 
 import com.example.projeto_ibg3.data.local.database.dao.PacienteEspecialidadeDao
 import com.example.projeto_ibg3.data.mappers.*
-import com.example.projeto_ibg3.data.repository.PacienteEspecialidadeRepository
+import com.example.projeto_ibg3.domain.repository.PacienteEspecialidadeRepository
 import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.PacienteEspecialidade
 import com.example.projeto_ibg3.domain.model.SyncStatus

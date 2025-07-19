@@ -4,7 +4,7 @@ import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
 import com.example.projeto_ibg3.data.mappers.toDto
 import com.example.projeto_ibg3.data.mappers.toEntity
-import com.example.projeto_ibg3.data.remote.api.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.sync.core.ConflictResolver
 import com.example.projeto_ibg3.sync.model.SyncResult
@@ -13,15 +13,13 @@ import javax.inject.Inject
 
 class EspecialidadeSyncStrategy @Inject constructor(
     private val dao: EspecialidadeDao,
-    private val api: PacienteApiService,
+    private val api: ApiService,
     private val conflictResolver: ConflictResolver
 ) : SyncStrategy {
 
-    // Método para obter deviceId (você pode implementar conforme sua necessidade)
+    // Método para obter deviceId
     private fun getCurrentDeviceId(): String {
-        // Implementar lógica para obter deviceId
-        // Por exemplo: Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-        return "device_${System.currentTimeMillis()}" // Implementação temporária
+        return "device_${System.currentTimeMillis()}"
     }
 
     override suspend fun sync(): SyncResult {
@@ -63,13 +61,14 @@ class EspecialidadeSyncStrategy @Inject constructor(
         return try {
             val pendingCount = dao.countPendingSync()
             if (pendingCount == 0) {
-                return SyncResult.SUCCESS(0, message = "Nenhuma especialidade pendente")
+                return SyncResult.SUCCESS(
+                    syncedCount = 0,
+                    failedCount = 0,
+                    message = "Nenhuma especialidade pendente"
+                )
             }
 
-            // Upload apenas itens pendentes
             val uploadResult = uploadLocalChanges()
-
-            // Download apenas modificações recentes
             val lastSync = getLastSyncTimestamp()
             val downloadResult = downloadServerChanges(since = lastSync)
 
@@ -79,7 +78,11 @@ class EspecialidadeSyncStrategy @Inject constructor(
             val totalFailed = ((uploadResult as? SyncResult.SUCCESS)?.failedCount ?: 0) +
                     ((downloadResult as? SyncResult.SUCCESS)?.failedCount ?: 0)
 
-            SyncResult.SUCCESS(totalSynced, totalFailed, message = "Sync rápido de especialidades")
+            SyncResult.SUCCESS(
+                syncedCount = totalSynced,
+                failedCount = totalFailed,
+                message = "Sync rápido de especialidades"
+            )
 
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro no sync rápido", e))
@@ -90,18 +93,30 @@ class EspecialidadeSyncStrategy @Inject constructor(
         return try {
             var syncedCount = 0
             var failedCount = 0
-            val currentDeviceId = getCurrentDeviceId()
 
-            // Upload criações
+            // Upload criações - apenas entidades sem serverId
             val pendingCreations = dao.getEspecialidadesByStatus(SyncStatus.PENDING_UPLOAD)
+                .filter { it.serverId == null }
+
             for (entity in pendingCreations) {
                 try {
                     val dto = entity.toDto()
                     val response = api.createEspecialidade(dto)
+
                     if (response.isSuccessful) {
-                        response.body()?.let { dto ->
-                            dao.markAsSynced(entity.localId, dto.serverId!!)
-                            syncedCount++
+                        response.body()?.let { apiResponse ->
+                            apiResponse.data?.let { responseDto ->
+                                responseDto.serverId?.let { serverId ->
+                                    dao.markAsSynced(entity.localId, serverId)
+                                    syncedCount++
+                                } ?: run {
+                                    dao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                                    failedCount++
+                                }
+                            }
+                        } ?: run {
+                            dao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                            failedCount++
                         }
                     } else {
                         dao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
@@ -113,13 +128,16 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 }
             }
 
-            // Upload atualizações
+            // Upload atualizações - entidades que já têm serverId
             val pendingUpdates = dao.getEspecialidadesByStatus(SyncStatus.PENDING_UPLOAD)
+                .filter { it.serverId != null }
+
             for (entity in pendingUpdates) {
                 try {
                     entity.serverId?.let { serverId ->
                         val dto = entity.toDto()
                         val response = api.updateEspecialidade(serverId, dto)
+
                         if (response.isSuccessful) {
                             dao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
                             syncedCount++
@@ -140,6 +158,7 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 try {
                     entity.serverId?.let { serverId ->
                         val response = api.deleteEspecialidade(serverId)
+
                         if (response.isSuccessful) {
                             dao.deleteEspecialidadePermanently(entity.localId)
                             syncedCount++
@@ -154,69 +173,79 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 }
             }
 
-            SyncResult.SUCCESS(syncedCount, failedCount, message = "Upload de especialidades concluído")
+            SyncResult.SUCCESS(
+                syncedCount = syncedCount,
+                failedCount = failedCount,
+                message = "Upload de especialidades concluído"
+            )
 
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro no upload", e))
         }
     }
 
-    // Método sem parâmetros que chama o método com parâmetros
     override suspend fun downloadServerChanges(): SyncResult {
         return downloadServerChanges(since = null)
     }
 
-    // Método com parâmetros (implementação principal)
     private suspend fun downloadServerChanges(since: Long? = null): SyncResult {
         return try {
             val currentDeviceId = getCurrentDeviceId()
-
-            // Usar o método disponível na API
             val response = api.getAllEspecialidades()
 
             if (response.isSuccessful) {
-                response.body()?.let { dtos ->
-                    var syncedCount = 0
-                    var conflictCount = 0
+                response.body()?.let { apiResponse ->
+                    apiResponse.data?.let { dtosList ->
+                        var syncedCount = 0
+                        var conflictCount = 0
 
-                    dtos.forEach { dto ->
-                        val serverEntity = dto.toEntity(deviceId = currentDeviceId)
-                        val localEntity = dao.getEspecialidadeByServerId(serverEntity.serverId!!)
+                        for (dto in dtosList) {
+                            val serverEntity = dto.toEntity(
+                                deviceId = currentDeviceId,
+                                syncStatus = SyncStatus.SYNCED
+                            )
 
-                        when {
-                            localEntity == null -> {
-                                // Novo item do servidor
-                                val newEntity = serverEntity.copy(
-                                    deviceId = currentDeviceId,
-                                    syncStatus = SyncStatus.SYNCED
-                                )
-                                dao.insertEspecialidade(newEntity)
-                                syncedCount++
+                            val localEntity = dto.serverId?.let { serverId ->
+                                dao.getEspecialidadeByServerId(serverId)
                             }
-                            needsConflictResolution(localEntity, serverEntity) -> {
-                                // Marcar como conflito
-                                dao.updateSyncStatus(localEntity.localId, SyncStatus.CONFLICT)
-                                conflictCount++
-                            }
-                            else -> {
-                                // Atualizar com dados do servidor
-                                val updatedEntity = serverEntity.copy(
-                                    localId = localEntity.localId,
-                                    deviceId = localEntity.deviceId, // Manter o deviceId original
-                                    syncStatus = SyncStatus.SYNCED
-                                )
-                                dao.updateEspecialidade(updatedEntity)
-                                syncedCount++
+
+                            when {
+                                localEntity == null -> {
+                                    dao.insertEspecialidade(serverEntity)
+                                    syncedCount++
+                                }
+                                needsConflictResolution(localEntity, serverEntity) -> {
+                                    dao.updateSyncStatus(localEntity.localId, SyncStatus.CONFLICT)
+                                    conflictCount++
+                                }
+                                else -> {
+                                    val updatedEntity = serverEntity.copy(
+                                        localId = localEntity.localId,
+                                        deviceId = localEntity.deviceId,
+                                        syncStatus = SyncStatus.SYNCED
+                                    )
+                                    dao.updateEspecialidade(updatedEntity)
+                                    syncedCount++
+                                }
                             }
                         }
-                    }
 
-                    SyncResult.SUCCESS(
-                        syncedCount = syncedCount,
-                        conflictCount = conflictCount,
-                        message = "Download concluído"
+                        SyncResult.SUCCESS(
+                            syncedCount = syncedCount,
+                            failedCount = 0,
+                            conflictCount = conflictCount,
+                            message = "Download concluído"
+                        )
+                    } ?: SyncResult.SUCCESS(
+                        syncedCount = 0,
+                        failedCount = 0,
+                        message = "Nenhuma especialidade para download"
                     )
-                } ?: SyncResult.SUCCESS(0, message = "Nenhuma especialidade para download")
+                } ?: SyncResult.SUCCESS(
+                    syncedCount = 0,
+                    failedCount = 0,
+                    message = "Resposta vazia do servidor"
+                )
             } else {
                 SyncResult.ERROR(
                     SyncError.ServerError("Erro no download", response.code())
@@ -234,22 +263,34 @@ class EspecialidadeSyncStrategy @Inject constructor(
             var resolvedCount = 0
             var failedCount = 0
 
-            conflicts.forEach { conflictEntity ->
+            for (conflictEntity in conflicts) {
                 try {
-                    // Buscar versão do servidor
-                    val serverResponse = api.getEspecialidadeById(conflictEntity.serverId!!)
+                    conflictEntity.serverId?.let { serverId ->
+                        val serverResponse = api.getEspecialidadeById(serverId)
 
-                    if (serverResponse.isSuccessful) {
-                        serverResponse.body()?.let { serverDto ->
-                            val serverEntity = serverDto.toEntity(deviceId = conflictEntity.deviceId)
+                        if (serverResponse.isSuccessful) {
+                            serverResponse.body()?.let { apiResponse ->
+                                apiResponse.data?.let { serverDto ->
+                                    val serverEntity = serverDto.toEntity(
+                                        deviceId = conflictEntity.deviceId,
+                                        syncStatus = SyncStatus.SYNCED
+                                    )
 
-                            // Usar ConflictResolver para decidir qual versão manter
-                            val resolvedEntity = conflictResolver.resolveConflict(conflictEntity, serverEntity)
+                                    val resolvedEntity = conflictResolver.resolveConflict(
+                                        conflictEntity,
+                                        serverEntity
+                                    )
 
-                            dao.updateEspecialidade(resolvedEntity.copy(syncStatus = SyncStatus.SYNCED))
-                            resolvedCount++
+                                    dao.updateEspecialidade(
+                                        resolvedEntity.copy(syncStatus = SyncStatus.SYNCED)
+                                    )
+                                    resolvedCount++
+                                }
+                            }
+                        } else {
+                            failedCount++
                         }
-                    } else {
+                    } ?: run {
                         failedCount++
                     }
                 } catch (e: Exception) {
@@ -257,7 +298,11 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 }
             }
 
-            SyncResult.SUCCESS(resolvedCount, failedCount, message = "Conflitos resolvidos")
+            SyncResult.SUCCESS(
+                syncedCount = resolvedCount,
+                failedCount = failedCount,
+                message = "Conflitos resolvidos"
+            )
 
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro ao resolver conflitos", e))
@@ -286,10 +331,9 @@ class EspecialidadeSyncStrategy @Inject constructor(
         }
     }
 
-    // Método helper para contar por status
     private suspend fun getCountByStatus(status: SyncStatus): Int {
         return try {
-            dao.getEspecialidadesByStatus(status).size
+            dao.countByStatus(status)
         } catch (e: Exception) {
             0
         }
@@ -300,13 +344,10 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 local.updatedAt > server.updatedAt
     }
 
-    // Método helper para obter o timestamp da última sincronização
     private suspend fun getLastSyncTimestamp(): Long {
         return try {
-            // Buscar pelo registro mais recente sincronizado
             dao.getLastSyncTimestamp() ?: 0L
         } catch (e: Exception) {
-            // Se não conseguir, usar o timestamp do último update
             dao.getLastUpdatedTimestamp() ?: 0L
         }
     }

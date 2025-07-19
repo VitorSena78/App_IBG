@@ -27,8 +27,8 @@ class SyncManager @Inject constructor(
     }
 
     // Estado da sincronização
-    private val _syncState = MutableStateFlow(SyncState.IDLE)
-    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+    private val _syncPhase = MutableStateFlow(SyncPhase.IDLE)
+    val syncPhase: StateFlow<SyncPhase> = _syncPhase.asStateFlow()
 
     private val _syncStats = MutableStateFlow(SyncStats())
     val syncStats: StateFlow<SyncStats> = _syncStats.asStateFlow()
@@ -60,7 +60,7 @@ class SyncManager @Inject constructor(
         }
 
         return try {
-            _syncState.value = SyncState.SYNCING
+            _syncPhase.value = SyncPhase.SYNCING
 
             val strategies = getSyncStrategies()
             var totalSynced = 0
@@ -89,7 +89,7 @@ class SyncManager @Inject constructor(
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro na sincronização rápida", e))
         } finally {
-            _syncState.value = SyncState.IDLE
+            _syncPhase.value = SyncPhase.IDLE
         }
     }
 
@@ -138,7 +138,7 @@ class SyncManager @Inject constructor(
      */
     suspend fun resolveAllConflicts(): SyncResult {
         return try {
-            _syncState.value = SyncState.RESOLVING_CONFLICTS
+            _syncPhase.value = SyncPhase.RESOLVING_CONFLICTS
 
             val strategies = getSyncStrategies()
             var totalResolved = 0
@@ -155,7 +155,7 @@ class SyncManager @Inject constructor(
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro ao resolver conflitos", e))
         } finally {
-            _syncState.value = SyncState.IDLE
+            _syncPhase.value = SyncPhase.IDLE
         }
     }
 
@@ -165,7 +165,7 @@ class SyncManager @Inject constructor(
     fun cancelSync() {
         syncScope.coroutineContext.cancelChildren()
         syncStateManager.setSyncInProgress(false)
-        _syncState.value = SyncState.IDLE
+        _syncPhase.value = SyncPhase.IDLE
     }
 
     // Métodos privados
@@ -177,7 +177,7 @@ class SyncManager @Inject constructor(
 
         return try {
             syncStateManager.setSyncInProgress(true)
-            _syncState.value = SyncState.SYNCING
+            _syncPhase.value = SyncPhase.SYNCING
 
             val startTime = System.currentTimeMillis()
             val strategies = getSyncStrategies()
@@ -222,7 +222,7 @@ class SyncManager @Inject constructor(
 
             if (totalFailed == 0) {
                 syncStateManager.updateLastSyncTimestamp()
-                _syncState.value = SyncState.COMPLETED
+                _syncPhase.value = SyncPhase.COMPLETED
                 SyncResult.SUCCESS(
                     syncedCount = totalSynced,
                     failedCount = totalFailed,
@@ -239,11 +239,11 @@ class SyncManager @Inject constructor(
             }
 
         } catch (e: Exception) {
-            _syncState.value = SyncState.ERROR
+            _syncPhase.value = SyncPhase.ERROR
             SyncResult.ERROR(SyncError.UnknownError("Erro na sincronização completa", e))
         } finally {
             syncStateManager.setSyncInProgress(false)
-            _syncState.value = SyncState.IDLE
+            _syncPhase.value = SyncPhase.IDLE
         }
     }
 
@@ -269,7 +269,7 @@ class SyncManager @Inject constructor(
      */
     suspend fun resetSyncData() {
         syncStateManager.setSyncInProgress(false)
-        _syncState.value = SyncState.IDLE
+        _syncPhase.value = SyncPhase.IDLE
         _syncStats.value = SyncStats()
     }
 
@@ -278,7 +278,7 @@ class SyncManager @Inject constructor(
      */
     fun getDebugInfo(): Map<String, Any> {
         return mapOf(
-            "syncState" to _syncState.value,
+            "syncPhase" to _syncPhase.value,
             "lastSyncTimestamp" to syncStateManager.getLastSyncTimestamp(),
             "isSyncInProgress" to syncStateManager.isSyncInProgress(),
             "networkAvailable" to networkChecker.isNetworkAvailable(),

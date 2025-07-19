@@ -1,6 +1,6 @@
 package com.example.projeto_ibg3.sync.model
 
-enum class SyncState {
+enum class SyncPhase {
     IDLE,
     SYNCING,
     UPLOADING,

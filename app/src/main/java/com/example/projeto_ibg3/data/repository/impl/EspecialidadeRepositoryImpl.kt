@@ -2,7 +2,9 @@ package com.example.projeto_ibg3.data.repository.impl
 
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.SyncStatus
+import com.example.projeto_ibg3.domain.repository.EspecialidadeRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -10,30 +12,38 @@ import javax.inject.Singleton
 @Singleton
 class EspecialidadeRepositoryImpl @Inject constructor(
     private val especialidadeDao: EspecialidadeDao
-) {
+): EspecialidadeRepository {
 
     // OPERAÇÕES BÁSICAS
-    fun getAllEspecialidades(): Flow<List<EspecialidadeEntity>> {
+    override fun getAllEspecialidades(): Flow<List<EspecialidadeEntity>> {
         return especialidadeDao.getAllEspecialidades()
     }
 
-    suspend fun getEspecialidadeById(localId: String): EspecialidadeEntity? {
+    override suspend fun getEspecialidadeById(localId: String): EspecialidadeEntity? {
         return especialidadeDao.getEspecialidadeById(localId)
     }
 
-    suspend fun getEspecialidadeByServerId(serverId: Long?): EspecialidadeEntity? {
+    override suspend fun getEspecialidadeByServerId(serverId: Long?): EspecialidadeEntity? {
         return especialidadeDao.getEspecialidadeByServerId(serverId)
     }
 
-    suspend fun getEspecialidadeByName(nome: String): EspecialidadeEntity? {
+    override suspend fun getEspecialidadeByName(nome: String): EspecialidadeEntity? {
         return especialidadeDao.getEspecialidadeByName(nome)
+    }
+
+    override suspend fun insertEspecialidade(especialidade: Especialidade): String {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun updateEspecialidade(especialidade: Especialidade) {
+        TODO("Not yet implemented")
     }
 
     suspend fun searchEspecialidadesByName(nome: String): List<EspecialidadeEntity> {
         return especialidadeDao.searchEspecialidadesByName(nome)
     }
 
-    suspend fun getEspecialidadeCount(): Int {
+    override suspend fun getEspecialidadeCount(): Int {
         return especialidadeDao.getEspecialidadesCount()
     }
 
@@ -73,12 +83,16 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     }
 
     // EXCLUSÃO
-    suspend fun deleteEspecialidade(localId: String) {
+    override suspend fun deleteEspecialidade(localId: String) {
         especialidadeDao.markAsDeleted(
             localId = localId,
             status = SyncStatus.PENDING_DELETE,
             timestamp = System.currentTimeMillis()
         )
+    }
+
+    override suspend fun searchEspecialidades(query: String): List<Especialidade> {
+        TODO("Not yet implemented")
     }
 
     suspend fun deleteEspecialidadePermanently(localId: String) {
@@ -94,7 +108,7 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     }
 
     // SINCRONIZAÇÃO
-    suspend fun getPendingSyncItems(): List<EspecialidadeEntity> {
+    override suspend fun getPendingSyncItems(): List<EspecialidadeEntity> {
         return especialidadeDao.getPendingSyncItems()
     }
 
@@ -106,7 +120,7 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         return especialidadeDao.getEspecialidadesByMultipleStatus(statuses)
     }
 
-    suspend fun updateSyncStatus(localId: String, newStatus: SyncStatus) {
+    override suspend fun updateSyncStatus(localId: String, newStatus: SyncStatus) {
         especialidadeDao.updateSyncStatus(
             localId = localId,
             newStatus = newStatus,
@@ -114,13 +128,17 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         )
     }
 
-    suspend fun markAsSynced(localId: String, serverId: Long) {
+    override suspend fun markAsSynced(localId: String, serverId: Long) {
         especialidadeDao.markAsSynced(
             localId = localId,
             serverId = serverId,
             status = SyncStatus.SYNCED,
             timestamp = System.currentTimeMillis()
         )
+    }
+
+    override suspend fun markAsSyncFailed(localId: String, error: String) {
+        TODO("Not yet implemented")
     }
 
     suspend fun markAsSyncFailed(localId: String, isDelete: Boolean = false) {
@@ -132,7 +150,7 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         )
     }
 
-    suspend fun getModifiedSince(timestamp: Long): List<EspecialidadeEntity> {
+    override suspend fun getModifiedSince(timestamp: Long): List<EspecialidadeEntity> {
         return especialidadeDao.getModifiedSince(timestamp)
     }
 
@@ -141,7 +159,7 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     }
 
     // MÉTODOS AUXILIARES
-    suspend fun especialidadeExists(nome: String, excludeId: String = ""): Boolean {
+    override suspend fun especialidadeExists(nome: String, excludeId: String): Boolean {
         return especialidadeDao.countEspecialidadesByName(nome, excludeId) > 0
     }
 
@@ -153,28 +171,28 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         return especialidadeDao.countPendingSync()
     }
 
-    suspend fun cleanupOldDeletedRecords(cutoffTimestamp: Long) {
+    override suspend fun cleanupOldDeletedRecords(cutoffTimestamp: Long) {
         especialidadeDao.cleanupOldDeletedRecords(cutoffTimestamp)
     }
 
     // MÉTODOS CONVENIENTES PARA SINCRONIZAÇÃO
-    suspend fun getPendingUploads(): List<EspecialidadeEntity> {
+    override suspend fun getPendingUploads(): List<EspecialidadeEntity> {
         return especialidadeDao.getEspecialidadesByMultipleStatus(
             listOf(SyncStatus.PENDING_UPLOAD, SyncStatus.UPLOAD_FAILED)
         )
     }
 
-    suspend fun getPendingDeletions(): List<EspecialidadeEntity> {
+    override suspend fun getPendingDeletions(): List<EspecialidadeEntity> {
         return especialidadeDao.getEspecialidadesByMultipleStatus(
             listOf(SyncStatus.PENDING_DELETE, SyncStatus.DELETE_FAILED)
         )
     }
 
-    suspend fun hasPendingChanges(): Boolean {
+    override suspend fun hasPendingChanges(): Boolean {
         return countPendingSync() > 0
     }
 
-    suspend fun retryFailedSync() {
+    override suspend fun retryFailedSync() {
         // Redefine status de upload com falha
         resetSyncStatus(SyncStatus.UPLOAD_FAILED, SyncStatus.PENDING_UPLOAD)
         // Redefine status de delete com falha

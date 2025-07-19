@@ -5,7 +5,7 @@ import com.example.projeto_ibg3.data.local.database.dao.SyncMetadataDao
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.data.mappers.toPaciente
 import com.example.projeto_ibg3.data.mappers.updateFrom
-import com.example.projeto_ibg3.data.remote.api.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.example.projeto_ibg3.data.remote.dto.PacienteDto
 import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.domain.model.SyncStatus
@@ -21,19 +21,21 @@ import android.util.Log
 import com.example.projeto_ibg3.data.mappers.toDto
 import com.example.projeto_ibg3.data.mappers.toEntity
 import com.example.projeto_ibg3.data.remote.conflict.ConflictResolution
+import com.example.projeto_ibg3.domain.repository.PacienteRepository
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.Date
 
 
+
 @Singleton
 class PacienteRepositoryImpl @Inject constructor(
     private val localDao: PacienteDao,
     private val syncMetadataDao: SyncMetadataDao,
-    private val apiService: PacienteApiService,
+    private val apiService: ApiService,
     private val networkUtils: NetworkUtils,
-) {
+): PacienteRepository {
     companion object {
         private const val TAG = "PacienteRepositoryImpl"
     }
@@ -54,7 +56,7 @@ class PacienteRepositoryImpl @Inject constructor(
      * FONTE ÚNICA DA VERDADE: Sempre retorna dados do banco local
      * Com tratamento de erro robusto
      */
-    fun getAllPacientes(): Flow<List<Paciente>> {
+    override fun getAllPacientes(): Flow<List<Paciente>> {
         return localDao.getAllPacientes()
             .map { entities ->
                 Log.d(TAG, "Carregando ${entities.size} pacientes do banco local")
@@ -70,7 +72,7 @@ class PacienteRepositoryImpl @Inject constructor(
     }
 
     // Busca por localId - sempre do local primeiro
-    suspend fun getPacienteById(localId: String): Paciente? {
+    override suspend fun getPacienteById(localId: String): Paciente? {
         return try {
             Log.d(TAG, "Buscando paciente com localId: $localId")
             localDao.getPacienteByLocalId(localId)?.takeIf { !it.isDeleted }?.toPaciente()
@@ -103,7 +105,7 @@ class PacienteRepositoryImpl @Inject constructor(
     }
 
     // Busca por nome (local primeiro)
-    fun searchPacientes(query: String): Flow<List<Paciente>> {
+    override suspend fun searchPacientes(query: String): Flow<List<Paciente>> {
         return localDao.searchPacientes(query)
             .map { entities ->
                 entities.filter { !it.isDeleted }.map { it.toPaciente() }
@@ -117,7 +119,7 @@ class PacienteRepositoryImpl @Inject constructor(
     // ========== OPERAÇÕES CRUD SIMPLIFICADAS ==========
 
     // INSERIR: Salva local primeiro, sincronização em background
-    suspend fun insertPaciente(paciente: Paciente): String { // MUDANÇA: Long -> String
+    override suspend fun insertPaciente(paciente: Paciente): String { // MUDANÇA: Long -> String
         return try {
             Log.d(TAG, "Inserindo paciente: ${paciente.nome}")
 
@@ -159,7 +161,7 @@ class PacienteRepositoryImpl @Inject constructor(
     }
 
     // ATUALIZAR: Atualiza local primeiro, sincronização em background
-    suspend fun updatePaciente(paciente: Paciente) {
+    override suspend fun updatePaciente(paciente: Paciente) {
         try {
             Log.d(TAG, "Atualizando paciente: ${paciente.nome}")
 
@@ -202,7 +204,7 @@ class PacienteRepositoryImpl @Inject constructor(
     }
 
     // DELETAR: Marca como deletado localmente, sincronização em background
-    suspend fun deletePaciente(localId: String) {
+    override suspend fun deletePaciente(localId: String) {
         try {
             Log.d(TAG, "Deletando paciente com localId: $localId")
 
@@ -221,6 +223,26 @@ class PacienteRepositoryImpl @Inject constructor(
             Log.e(TAG, "Erro ao deletar paciente", e)
             throw e
         }
+    }
+
+    override suspend fun syncPacientes(): Result<Unit> {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun getPacientesNaoSincronizados(): List<Paciente> {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun markAsSynced(localId: String, serverId: Long) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun getPacienteCount(): Int {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun pacienteExists(cpf: String, excludeId: String): Boolean {
+        TODO("Not yet implemented")
     }
 
     // ========== SINCRONIZAÇÃO SIMPLIFICADA ==========
@@ -256,10 +278,21 @@ class PacienteRepositoryImpl @Inject constructor(
             val response = apiService.getUpdatedPacientes(lastSync)
 
             if (response.isSuccessful) {
-                val serverPacientes = response.body() ?: emptyList()
+                val apiResponse = response.body()
+
+                // CORREÇÃO: Extrair a lista do ApiResponse
+                val serverPacientes: List<PacienteDto> = when {
+                    apiResponse?.success == true -> apiResponse.data ?: emptyList()
+                    else -> {
+                        val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
+                        throw Exception("Erro da API: $errorMsg")
+                    }
+                }
+
                 Log.d(TAG, "Recebidos ${serverPacientes.size} pacientes do servidor")
 
-                serverPacientes.forEach { serverPacienteDto ->
+                // Processar cada paciente
+                serverPacientes.forEach { serverPacienteDto: PacienteDto ->
                     processServerPaciente(serverPacienteDto)
                 }
 
@@ -270,7 +303,7 @@ class PacienteRepositoryImpl @Inject constructor(
                 Result.success(Unit)
             } else {
                 syncMetadataDao.setSyncInProgress(false)
-                val error = "Erro ao sincronizar: ${response.message()}"
+                val error = "Erro HTTP: ${response.code()} - ${response.message()}"
                 Log.e(TAG, error)
                 Result.failure(Exception(error))
             }
@@ -386,14 +419,24 @@ class PacienteRepositoryImpl @Inject constructor(
                 }
 
                 if (response.isSuccessful) {
-                    val serverPacienteDto = response.body()
+                    val apiResponse = response.body()
+
+                    // CORREÇÃO: Extrair o paciente do ApiResponse
+                    val serverPacienteDto = when {
+                        apiResponse?.success == true -> apiResponse.data
+                        else -> {
+                            val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
+                            throw Exception("Erro na sincronização individual: $errorMsg")
+                        }
+                    }
+
                     if (serverPacienteDto != null) {
                         localDao.updateSyncStatusAndServerId(
-                            localEntity.localId, // MUDANÇA: já é String
+                            localEntity.localId,
                             SyncStatus.SYNCED,
-                            serverPacienteDto.serverId ?: 0L
+                            serverPacienteDto.serverId ?: throw Exception("ServerId não retornado pelo servidor")
                         )
-                        retryCache.remove(localId) // MUDANÇA: usar localId (String)
+                        retryCache.remove(localId)
                         Log.d(TAG, "Paciente sincronizado com sucesso: ${localEntity.nome}")
                     }
                 } else {
@@ -418,37 +461,65 @@ class PacienteRepositoryImpl @Inject constructor(
 
             // Cria novos pacientes em lote
             if (pacientesToCreate.isNotEmpty()) {
-                val pacientesDto = pacientesToCreate.map { it.toDto() }
+                val pacientesDto: List<PacienteDto> = pacientesToCreate.map { it.toDto() }
                 val response = apiService.createPacientesBatch(pacientesDto)
 
                 if (response.isSuccessful) {
-                    val serverPacientes = response.body() ?: emptyList()
-                    serverPacientes.forEachIndexed { index, serverPacienteDto ->
-                        val localEntity = pacientesToCreate[index]
-                        localDao.updateSyncStatusAndServerId(
-                            localEntity.localId,
-                            SyncStatus.SYNCED,
-                            serverPacienteDto.serverId ?: 0L
-                        )
-                        retryCache.remove(localEntity.localId) // MUDANÇA: especificar tipo String
+                    val apiResponse = response.body()
+                    val serverPacientes: List<PacienteDto> = when {
+                        apiResponse?.success == true -> apiResponse.data ?: emptyList()
+                        else -> {
+                            val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
+                            throw Exception("Erro na criação em lote: $errorMsg")
+                        }
                     }
-                    Log.d(TAG, "Batch create sincronizado: ${pacientesToCreate.size} pacientes")
+
+                    // SOLUÇÃO SEGURA: Mapear por localId em vez de posição
+                    val serverPacientesMap = serverPacientes.associateBy { it.localId }
+
+                    pacientesToCreate.forEach { localEntity ->
+                        val serverPacienteDto = serverPacientesMap[localEntity.localId]
+
+                        if (serverPacienteDto?.serverId != null) {
+                            localDao.updateSyncStatusAndServerId(
+                                localEntity.localId,
+                                SyncStatus.SYNCED,
+                                serverPacienteDto.serverId
+                            )
+                            retryCache.remove(localEntity.localId)
+                            Log.d(TAG, "Paciente sincronizado: ${localEntity.nome}")
+                        } else {
+                            Log.e(TAG, "ServerId não encontrado para paciente: ${localEntity.localId}")
+                            handleSyncFailure(listOf(localEntity))
+                        }
+                    }
+
+                    Log.d(TAG, "Batch create sincronizado: ${serverPacientes.size} pacientes")
                 } else {
                     handleSyncFailure(pacientesToCreate)
                 }
             }
 
-            // Atualiza pacientes existentes em lote
+            // Atualiza pacientes existentes (permanece igual)
             if (pacientesToUpdate.isNotEmpty()) {
-                val pacientesDto = pacientesToUpdate.map { it.toDto() }
+                val pacientesDto: List<PacienteDto> = pacientesToUpdate.map { it.toDto() }
                 val response = apiService.updatePacientesBatch(pacientesDto)
 
                 if (response.isSuccessful) {
-                    pacientesToUpdate.forEach { entity ->
-                        localDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
-                        retryCache.remove(entity.localId) // MUDANÇA: especificar tipo String
+                    val apiResponse = response.body()
+                    when {
+                        apiResponse?.success == true -> {
+                            pacientesToUpdate.forEach { entity ->
+                                localDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
+                                retryCache.remove(entity.localId)
+                            }
+                            Log.d(TAG, "Batch update sincronizado: ${pacientesToUpdate.size} pacientes")
+                        }
+                        else -> {
+                            val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
+                            throw Exception("Erro na atualização em lote: $errorMsg")
+                        }
                     }
-                    Log.d(TAG, "Batch update sincronizado: ${pacientesToUpdate.size} pacientes")
                 } else {
                     handleSyncFailure(pacientesToUpdate)
                 }
@@ -467,11 +538,22 @@ class PacienteRepositoryImpl @Inject constructor(
                 val response = apiService.deletePacientesBatch(serverIds)
 
                 if (response.isSuccessful) {
-                    entities.forEach { entity ->
-                        localDao.deletePacientePermanently(entity.localId)
-                        retryCache.remove(entity.localId) // MUDANÇA: especificar tipo String
+                    val apiResponse = response.body()
+
+                    // CORREÇÃO: Verificar se a operação foi bem-sucedida
+                    when {
+                        apiResponse?.success == true -> {
+                            entities.forEach { entity ->
+                                localDao.deletePacientePermanently(entity.localId)
+                                retryCache.remove(entity.localId)
+                            }
+                            Log.d(TAG, "Batch delete sincronizado: ${entities.size} pacientes")
+                        }
+                        else -> {
+                            val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
+                            throw Exception("Erro na deleção em lote: $errorMsg")
+                        }
                     }
-                    Log.d(TAG, "Batch delete sincronizado: ${entities.size} pacientes")
                 } else {
                     handleSyncFailure(entities)
                 }

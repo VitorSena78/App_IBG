@@ -3,7 +3,7 @@ package com.example.projeto_ibg3.sync.service
 import android.content.Context
 import androidx.work.*
 import com.example.projeto_ibg3.data.local.database.AppDatabase
-import com.example.projeto_ibg3.data.remote.api.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
@@ -26,7 +26,7 @@ import com.example.projeto_ibg3.sync.extension.toSyncError
 
 class SyncService(
     private val database: AppDatabase,
-    private val pacienteApiService: PacienteApiService,
+    private val apiService: ApiService,
     private val context: Context
 ) {
 
@@ -82,10 +82,12 @@ class SyncService(
 
     private suspend fun syncEspecialidades() {
         try {
-            val response = pacienteApiService.getAllEspecialidades()
+            val response = apiService.getAllEspecialidades()
             if (response.isSuccessful) {
-                response.body()?.let { especialidadesDto ->
-                    updateEspecialidades(especialidadesDto)
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateEspecialidades(apiResponse.data) //  List<EspecialidadeDto>
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -152,12 +154,15 @@ class SyncService(
         if (createList.isEmpty()) return 0
 
         return try {
-            val response = pacienteApiService.createPacientesBatch(createList)
+            val response = apiService.createPacientesBatch(createList)
             if (response.isSuccessful) {
-                response.body()?.let { createdPacientes ->
-                    // Atualizar pacientes locais com IDs do servidor
-                    updateLocalPacientesWithServerIds(createdPacientes)
-                    createdPacientes.size
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateLocalPacientesWithServerIds(apiResponse.data)
+                        apiResponse.data.size // List<PacienteDto>.size
+                    } else {
+                        0
+                    }
                 } ?: 0
             } else {
                 0
@@ -172,12 +177,15 @@ class SyncService(
         if (updateList.isEmpty()) return 0
 
         return try {
-            val response = pacienteApiService.updatePacientesBatch(updateList)
+            val response = apiService.updatePacientesBatch(updateList)
             if (response.isSuccessful) {
-                response.body()?.let { updatedPacientes ->
-                    // Atualizar dados locais com resposta do servidor
-                    updateLocalPacientesFromServer(updatedPacientes)
-                    updatedPacientes.size
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateLocalPacientesFromServer(apiResponse.data)
+                        apiResponse.data.size
+                    } else {
+                        0
+                    }
                 } ?: 0
             } else {
                 0
@@ -192,7 +200,7 @@ class SyncService(
         if (deleteList.isEmpty()) return 0
 
         return try {
-            val response = pacienteApiService.deletePacientesBatch(deleteList)
+            val response = apiService.deletePacientesBatch(deleteList)
             if (response.isSuccessful) {
                 // Remover pacientes do banco local
                 deleteLocalPacientes(deleteList)
@@ -209,11 +217,13 @@ class SyncService(
     private suspend fun downloadServerUpdates() {
         try {
             val lastSync = getLastSyncTimestamp()
-            val response = pacienteApiService.getUpdatedPacientes(lastSync)
+            val response = apiService.getUpdatedPacientes(lastSync)
 
             if (response.isSuccessful) {
-                response.body()?.let { pacientesServidor ->
-                    updateLocalPacientesFromServer(pacientesServidor)
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateLocalPacientesFromServer(apiResponse.data)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -365,12 +375,13 @@ class SyncService(
     // MÉTODO PRINCIPAL: Sincronizar especialidades do servidor
     private suspend fun syncPacienteEspecialidadesFromServer(pacienteLocalId: String, pacienteServerId: Long) {
         try {
-            // Buscar relações paciente-especialidade do servidor
-            val response = pacienteApiService.getPacienteEspecialidades(pacienteServerId)
+            val response = apiService.getPacienteEspecialidades(pacienteServerId)
 
             if (response.isSuccessful) {
-                response.body()?.let { especialidadeRelations ->
-                    updateLocalPacienteEspecialidades(pacienteLocalId, especialidadeRelations)
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateLocalPacienteEspecialidades(pacienteLocalId, apiResponse.data) // ✅ CORRETO
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -427,7 +438,7 @@ class SyncService(
                 }
 
                 // Enviar para o servidor
-                val response = pacienteApiService.syncPacienteEspecialidades(relationsDto)
+                val response = apiService.syncPacienteEspecialidades(relationsDto)
 
                 if (response.isSuccessful) {
                     // Marcar como sincronizado usando o método correto
@@ -489,10 +500,12 @@ class SyncService(
     // MÉTODO: Sincronizar todas as especialidades
     private suspend fun syncAllEspecialidades() {
         try {
-            val response = pacienteApiService.getAllEspecialidades()
+            val response = apiService.getAllEspecialidades()
             if (response.isSuccessful) {
-                response.body()?.let { especialidadesDto ->
-                    updateLocalEspecialidades(especialidadesDto)
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        updateLocalEspecialidades(apiResponse.data) // ✅ CORRETO
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -596,38 +609,39 @@ class SyncService(
     // ADIÇÃO: Método para tratar especialidades se necessário
     private suspend fun syncPacienteEspecialidades(pacienteLocalId: String, serverId: Long) {
         try {
-            // Buscar especialidades do servidor para este paciente
-            val especialidades = pacienteApiService.getPacienteEspecialidades(serverId)
+            val response = apiService.getPacienteEspecialidades(serverId)
 
-            if (especialidades.isSuccessful) {
-                especialidades.body()?.let { especialidadeIds ->
-                    // Limpar especialidades existentes
-                    database.pacienteEspecialidadeDao().deleteByPacienteId(pacienteLocalId)
+            if (response.isSuccessful) {
+                response.body()?.let { apiResponse ->
+                    if (apiResponse.success && apiResponse.data != null) {
+                        // Limpar especialidades existentes
+                        database.pacienteEspecialidadeDao().deleteByPacienteId(pacienteLocalId)
 
-                    // Criar entities diretamente
-                    val entities = especialidadeIds.map { dto ->
-                        PacienteEspecialidadeEntity(
-                            pacienteLocalId = pacienteLocalId,
-                            especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeId}",
-                            pacienteServerId = serverId,
-                            especialidadeServerId = dto.especialidadeId, // Assumindo que é o server ID
-                            syncStatus = SyncStatus.SYNCED,
-                            deviceId = getDeviceId(),
-                            dataAtendimento = System.currentTimeMillis(),
-                            createdAt = System.currentTimeMillis(),
-                            updatedAt = System.currentTimeMillis(),
-                            lastSyncTimestamp = System.currentTimeMillis(),
-                            version = 1,
-                            isDeleted = false,
-                            syncAttempts = 0,
-                            lastSyncAttempt = 0L,
-                            syncError = null
-                        )
-                    }
+                        // Criar entities diretamente
+                        val entities = apiResponse.data.map { dto -> //  data é List<PacienteEspecialidadeDTO>
+                            PacienteEspecialidadeEntity(
+                                pacienteLocalId = pacienteLocalId,
+                                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeId}", // ✅ CORRETO
+                                pacienteServerId = serverId,
+                                especialidadeServerId = dto.especialidadeId, 
+                                syncStatus = SyncStatus.SYNCED,
+                                deviceId = getDeviceId(),
+                                dataAtendimento = System.currentTimeMillis(),
+                                createdAt = System.currentTimeMillis(),
+                                updatedAt = System.currentTimeMillis(),
+                                lastSyncTimestamp = System.currentTimeMillis(),
+                                version = 1,
+                                isDeleted = false,
+                                syncAttempts = 0,
+                                lastSyncAttempt = 0L,
+                                syncError = null
+                            )
+                        }
 
-                    // Usar o método correto do DAO
-                    if (entities.isNotEmpty()) {
-                        database.pacienteEspecialidadeDao().insertAll(entities)
+                        // Inserir no banco
+                        if (entities.isNotEmpty()) {
+                            database.pacienteEspecialidadeDao().insertAll(entities)
+                        }
                     }
                 }
             }

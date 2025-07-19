@@ -40,6 +40,15 @@ fun Especialidade.toEntity(
     )
 }
 
+// DTO para Domain Model
+fun EspecialidadeDto.toDomain(): Especialidade {
+    return Especialidade(
+        localId = this.localId,
+        serverId = this.serverId,
+        nome = this.nome
+    )
+}
+
 // ============================================================================
 // MAPPERS INDIVIDUAIS - DTO ↔ ENTITY
 // ============================================================================
@@ -73,6 +82,15 @@ fun EspecialidadeEntity.toDto(): EspecialidadeDto {
         createdAt = this.createdAt,
         updatedAt = this.updatedAt,
         isDeleted = this.isDeleted
+    )
+}
+
+// Entity para Domain Model
+fun EspecialidadeEntity.toDomain(): Especialidade {
+    return Especialidade(
+        localId = this.localId,
+        serverId = this.serverId,
+        nome = this.nome
     )
 }
 

@@ -13,7 +13,7 @@ object ApiConfig {
     // Para servidor remoto: "https://meudominio.com/api/"
     // Para emulador Android: "http://10.0.2.2:8080/api/"
 
-    private const val BASE_URL = "http://192.168.1.100:8080/api/" // Substitua pelo seu IP
+    private const val BASE_URL = "http://192.168.100.53:8080/api/" // Substitua pelo seu IP
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -24,12 +24,12 @@ object ApiConfig {
         })
         .build()
 
-    fun getApiService(): PacienteApiService {
+    fun getApiService(): ApiService {
         val retrofit = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-        return retrofit.create(PacienteApiService::class.java)
+        return retrofit.create(ApiService::class.java)
     }
 }

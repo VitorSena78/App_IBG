@@ -1,6 +1,6 @@
 package com.example.projeto_ibg3.di
 
-import com.example.projeto_ibg3.data.remote.api.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -56,7 +56,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun providePacienteApiService(retrofit: Retrofit): PacienteApiService {
-        return retrofit.create(PacienteApiService::class.java)
+    fun providePacienteApiService(retrofit: Retrofit): ApiService {
+        return retrofit.create(ApiService::class.java)
     }
 }

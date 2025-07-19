@@ -7,5 +7,9 @@ enum class SyncType {
     INCREMENTAL,
 
     @SerializedName("full")
-    FULL
+    FULL,
+
+    ALL,
+    PACIENTES,
+    ESPECIALIDADES
 }

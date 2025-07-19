@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+
+
 
 @HiltViewModel
 class PacienteDetalheViewModel @Inject constructor(
