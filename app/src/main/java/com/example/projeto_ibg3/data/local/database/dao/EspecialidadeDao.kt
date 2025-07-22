@@ -12,6 +12,9 @@ interface EspecialidadeDao {
     @Query("SELECT * FROM especialidades WHERE is_deleted = 0 ORDER BY nome ASC")
     fun getAllEspecialidades(): Flow<List<EspecialidadeEntity>>
 
+    @Query("SELECT * FROM especialidades WHERE is_deleted = 0 ORDER BY nome ASC")
+    suspend fun getAllEspecialidadesList(): List<EspecialidadeEntity>
+
     @Query("SELECT * FROM especialidades WHERE local_id = :localId AND is_deleted = 0")
     suspend fun getEspecialidadeById(localId: String): EspecialidadeEntity?
 

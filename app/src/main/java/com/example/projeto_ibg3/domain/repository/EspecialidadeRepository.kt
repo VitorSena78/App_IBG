@@ -13,7 +13,6 @@ interface EspecialidadeRepository {
     suspend fun getEspecialidadeByName(nome: String): EspecialidadeEntity?
     suspend fun insertEspecialidade(especialidade: Especialidade): String
     suspend fun updateEspecialidade(especialidade: Especialidade)
-    suspend fun deleteEspecialidade(localId: String)
 
     // Busca
     suspend fun searchEspecialidades(query: String): List<Especialidade>

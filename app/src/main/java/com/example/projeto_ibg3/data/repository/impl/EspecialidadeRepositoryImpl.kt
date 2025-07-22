@@ -2,10 +2,13 @@ package com.example.projeto_ibg3.data.repository.impl
 
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+import com.example.projeto_ibg3.data.mappers.toDomainModelList
+import com.example.projeto_ibg3.data.mappers.toEntity
 import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.repository.EspecialidadeRepository
 import kotlinx.coroutines.flow.Flow
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,15 +35,21 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertEspecialidade(especialidade: Especialidade): String {
-        TODO("Not yet implemented")
+        val localId = if (especialidade.localId.isEmpty()) UUID.randomUUID().toString() else especialidade.localId
+        val entity = especialidade.copy(localId = localId).toEntity(
+            deviceId = "default_device",
+            syncStatus = SyncStatus.PENDING_UPLOAD
+        )
+        especialidadeDao.insertEspecialidade(entity)
+        return localId
     }
 
     override suspend fun updateEspecialidade(especialidade: Especialidade) {
-        TODO("Not yet implemented")
-    }
-
-    suspend fun searchEspecialidadesByName(nome: String): List<EspecialidadeEntity> {
-        return especialidadeDao.searchEspecialidadesByName(nome)
+        val entity = especialidade.toEntity(
+            deviceId = "default_device",
+            syncStatus = SyncStatus.PENDING_UPLOAD
+        )
+        especialidadeDao.updateEspecialidade(entity)
     }
 
     override suspend fun getEspecialidadeCount(): Int {
@@ -56,68 +65,13 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         return especialidadeDao.insertEspecialidade(especialidadeToInsert)
     }
 
-    suspend fun insertEspecialidades(especialidades: List<EspecialidadeEntity>) {
-        val especialidadesToInsert = especialidades.map { especialidade ->
-            especialidade.copy(
-                syncStatus = SyncStatus.PENDING_UPLOAD,
-                updatedAt = System.currentTimeMillis()
-            )
-        }
-        especialidadeDao.insertEspecialidades(especialidadesToInsert)
-    }
-
-    suspend fun updateEspecialidade(especialidade: EspecialidadeEntity) {
-        val especialidadeToUpdate = especialidade.copy(
-            syncStatus = SyncStatus.PENDING_UPLOAD,
-            updatedAt = System.currentTimeMillis()
-        )
-        especialidadeDao.updateEspecialidade(especialidadeToUpdate)
-    }
-
-    suspend fun insertOrUpdateEspecialidade(especialidade: EspecialidadeEntity) {
-        val especialidadeToSave = especialidade.copy(
-            syncStatus = if (especialidade.serverId == null) SyncStatus.PENDING_UPLOAD else SyncStatus.SYNCED,
-            updatedAt = System.currentTimeMillis()
-        )
-        especialidadeDao.insertOrUpdateEspecialidade(especialidadeToSave)
-    }
-
-    // EXCLUSÃO
-    override suspend fun deleteEspecialidade(localId: String) {
-        especialidadeDao.markAsDeleted(
-            localId = localId,
-            status = SyncStatus.PENDING_DELETE,
-            timestamp = System.currentTimeMillis()
-        )
-    }
-
     override suspend fun searchEspecialidades(query: String): List<Especialidade> {
-        TODO("Not yet implemented")
-    }
-
-    suspend fun deleteEspecialidadePermanently(localId: String) {
-        especialidadeDao.deleteEspecialidadePermanently(localId)
-    }
-
-    suspend fun restoreDeleted(localId: String) {
-        especialidadeDao.restoreDeleted(
-            localId = localId,
-            status = SyncStatus.PENDING_UPLOAD,
-            timestamp = System.currentTimeMillis()
-        )
+        return especialidadeDao.searchEspecialidadesByName(query).toDomainModelList()
     }
 
     // SINCRONIZAÇÃO
     override suspend fun getPendingSyncItems(): List<EspecialidadeEntity> {
         return especialidadeDao.getPendingSyncItems()
-    }
-
-    suspend fun getEspecialidadesByStatus(status: SyncStatus): List<EspecialidadeEntity> {
-        return especialidadeDao.getEspecialidadesByStatus(status)
-    }
-
-    suspend fun getEspecialidadesByMultipleStatus(statuses: List<SyncStatus>): List<EspecialidadeEntity> {
-        return especialidadeDao.getEspecialidadesByMultipleStatus(statuses)
     }
 
     override suspend fun updateSyncStatus(localId: String, newStatus: SyncStatus) {
@@ -138,14 +92,9 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun markAsSyncFailed(localId: String, error: String) {
-        TODO("Not yet implemented")
-    }
-
-    suspend fun markAsSyncFailed(localId: String, isDelete: Boolean = false) {
-        val failedStatus = if (isDelete) SyncStatus.DELETE_FAILED else SyncStatus.UPLOAD_FAILED
         especialidadeDao.updateSyncStatus(
             localId = localId,
-            newStatus = failedStatus,
+            newStatus = SyncStatus.UPLOAD_FAILED,
             timestamp = System.currentTimeMillis()
         )
     }
@@ -161,10 +110,6 @@ class EspecialidadeRepositoryImpl @Inject constructor(
     // MÉTODOS AUXILIARES
     override suspend fun especialidadeExists(nome: String, excludeId: String): Boolean {
         return especialidadeDao.countEspecialidadesByName(nome, excludeId) > 0
-    }
-
-    suspend fun getDeletedEspecialidades(): List<EspecialidadeEntity> {
-        return especialidadeDao.getDeletedEspecialidades()
     }
 
     suspend fun countPendingSync(): Int {

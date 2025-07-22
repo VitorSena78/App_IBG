@@ -7,6 +7,8 @@ import retrofit2.Response
 import retrofit2.http.*
 import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
 import com.example.projeto_ibg3.data.remote.dto.PacienteEspecialidadeDTO
+import com.google.gson.JsonObject
+import retrofit2.Call
 
 interface ApiService {
 
@@ -70,7 +72,7 @@ interface ApiService {
     // ========== ESPECIALIDADES ==========
 
     @GET("especialidades")
-    suspend fun getAllEspecialidades(): Response<ApiResponse<List<EspecialidadeDto>>>
+    suspend fun getAllEspecialidades(): Response<ApiResponse<List<EspecialidadeDto>>>//Response<ApiResponse<List<EspecialidadeDto>>>
 
     @GET("especialidades/{id}")
     suspend fun getEspecialidadeById(@Path("id") id: Long): Response<ApiResponse<EspecialidadeDto>>
@@ -80,9 +82,6 @@ interface ApiService {
 
     @PUT("especialidades/{id}")
     suspend fun updateEspecialidade(@Path("id") id: Long, @Body especialidade: EspecialidadeDto): Response<ApiResponse<EspecialidadeDto>>
-
-    @DELETE("especialidades/{id}")
-    suspend fun deleteEspecialidade(@Path("id") id: Long): Response<ApiResponse<Unit>>
 
     // ========== RELACIONAMENTO PACIENTE-ESPECIALIDADE ==========
 

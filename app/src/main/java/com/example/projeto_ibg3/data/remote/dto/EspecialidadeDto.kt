@@ -1,13 +1,15 @@
 package com.example.projeto_ibg3.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
+import java.util.UUID
 
 data class EspecialidadeDto(
-    @SerializedName("server_id")
+    // CORRIGIDO: O servidor retorna "id", não "server_id"
+    @SerializedName("id")
     val serverId: Long?,
 
     @SerializedName("local_id")
-    val localId: String,
+    val localId: String = UUID.randomUUID().toString(),
 
     @SerializedName("nome")
     val nome: String,
@@ -16,14 +18,16 @@ data class EspecialidadeDto(
     val deviceId: String? = null,
 
     @SerializedName("last_sync_timestamp")
-    val lastSyncTimestamp: Long = 0,
+    val lastSyncTimestamp: Long? = null, // Tornar opcional
 
-    @SerializedName("created_at")
-    val createdAt: Long? = null,
+    // CORRIGIDO: O servidor retorna datas como string ISO, não timestamp
+    @SerializedName("createdAt")
+    val createdAt: String? = null,
 
-    @SerializedName("updated_at")
-    val updatedAt: Long? = null,
+    @SerializedName("updatedAt")
+    val updatedAt: String? = null,
 
     @SerializedName("is_deleted")
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean? = null // Tornar opcional pois o servidor não envia
 )
+

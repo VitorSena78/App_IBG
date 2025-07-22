@@ -1,25 +1,29 @@
 package com.example.projeto_ibg3.sync.worker
 
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.projeto_ibg3.data.local.database.AppDatabase
-import com.example.projeto_ibg3.data.remote.api.ApiConfig
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.example.projeto_ibg3.sync.utils.ExponentialBackoffRetry
 import com.example.projeto_ibg3.sync.service.SyncService
 import com.example.projeto_ibg3.sync.model.SyncResult
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 
-class SyncWorker(
-    context: Context,
-    params: WorkerParameters
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val apiService: ApiService,
+    private val database: AppDatabase
 ) : CoroutineWorker(context, params) {
 
     private val retryHelper = ExponentialBackoffRetry()
 
     override suspend fun doWork(): Result {
         return try {
-            val database = AppDatabase.getDatabase(applicationContext)
-            val apiService = ApiConfig.getApiService()
             val syncService = SyncService(database, apiService, applicationContext)
 
             // Usa retry exponencial

@@ -152,27 +152,6 @@ class EspecialidadeSyncStrategy @Inject constructor(
                 }
             }
 
-            // Upload deleções
-            val pendingDeletions = dao.getEspecialidadesByStatus(SyncStatus.PENDING_DELETE)
-            for (entity in pendingDeletions) {
-                try {
-                    entity.serverId?.let { serverId ->
-                        val response = api.deleteEspecialidade(serverId)
-
-                        if (response.isSuccessful) {
-                            dao.deleteEspecialidadePermanently(entity.localId)
-                            syncedCount++
-                        } else {
-                            dao.updateSyncStatus(entity.localId, SyncStatus.DELETE_FAILED)
-                            failedCount++
-                        }
-                    }
-                } catch (e: Exception) {
-                    dao.updateSyncStatus(entity.localId, SyncStatus.DELETE_FAILED)
-                    failedCount++
-                }
-            }
-
             SyncResult.SUCCESS(
                 syncedCount = syncedCount,
                 failedCount = failedCount,
@@ -255,6 +234,8 @@ class EspecialidadeSyncStrategy @Inject constructor(
         } catch (e: Exception) {
             SyncResult.ERROR(SyncError.UnknownError("Erro no download", e))
         }
+
+        return TODO("Provide the return value")
     }
 
     override suspend fun resolveConflicts(): SyncResult {

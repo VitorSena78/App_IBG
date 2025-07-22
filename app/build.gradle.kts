@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
+    id("kotlin-parcelize")
 }
 
 android {
@@ -55,10 +56,12 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
 
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     implementation(libs.play.services.nearby)
+    implementation(libs.androidx.hilt.common)
     ksp(libs.room.compiler)
 
     // Retrofit e OkHttp

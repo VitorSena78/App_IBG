@@ -1,17 +1,20 @@
 package com.example.projeto_ibg3.data.repository.impl
 
 import android.util.Log
-import com.example.projeto_ibg3.data.remote.api.ApiConfig
+import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
+import com.example.projeto_ibg3.data.mappers.toDomain
 import com.example.projeto_ibg3.data.remote.api.ApiResult
 import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.example.projeto_ibg3.data.remote.api.NetworkManager
 import com.example.projeto_ibg3.data.remote.dto.PacienteDto
-import com.example.projeto_ibg3.data.remote.dto.SyncType
+import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
+import com.example.projeto_ibg3.data.mappers.toEntityList
 import com.example.projeto_ibg3.domain.model.SyncProgress
 import com.example.projeto_ibg3.domain.model.SyncState
-
+import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.repository.SyncRepository
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
+import com.example.projeto_ibg3.domain.repository.EspecialidadeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,10 +25,15 @@ import javax.inject.Singleton
 @Singleton
 class SyncRepositoryImpl @Inject constructor(
     private val networkManager: NetworkManager,
-    private val pacienteRepository: PacienteRepository, // Injetar se precisar
+    private val especialidadeDao: EspecialidadeDao, // <- Injete o DAO
+    private val pacienteRepository: PacienteRepository,
+    private val especialidadeRepository: EspecialidadeRepository,
+    private val apiService: ApiService
 ): SyncRepository {
 
-    private val apiService = ApiConfig.getApiService()
+    companion object {
+        private const val TAG = "SyncRepository"
+    }
 
     // Estados observáveis
     private val _syncState = MutableStateFlow(SyncState())
@@ -54,30 +62,11 @@ class SyncRepositoryImpl @Inject constructor(
                 return@flow
             }
 
-            // Etapa 1: Sincronizar Pacientes
-            _syncState.value = _syncState.value.copy(
-                message = "Sincronizando pacientes...",
-                totalItems = 2,
-                processedItems = 0
-            )
-            emit(_syncState.value)
-
-            val pacientesResult = syncPacientes()
-            if (pacientesResult.isFailure) {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = pacientesResult.exceptionOrNull()?.message,
-                    message = "Erro ao sincronizar pacientes"
-                )
-                _syncState.value = errorState
-                emit(errorState)
-                return@flow
-            }
-
-            // Etapa 2: Sincronizar Especialidades
+            // Etapa 1: Sincronizar Especialidades primeiro
             _syncState.value = _syncState.value.copy(
                 message = "Sincronizando especialidades...",
-                processedItems = 1
+                totalItems = 2,
+                processedItems = 0
             )
             emit(_syncState.value)
 
@@ -87,6 +76,25 @@ class SyncRepositoryImpl @Inject constructor(
                     isLoading = false,
                     error = especialidadesResult.exceptionOrNull()?.message,
                     message = "Erro ao sincronizar especialidades"
+                )
+                _syncState.value = errorState
+                emit(errorState)
+                return@flow
+            }
+
+            // Etapa 2: Sincronizar Pacientes
+            _syncState.value = _syncState.value.copy(
+                message = "Sincronizando pacientes...",
+                processedItems = 1
+            )
+            emit(_syncState.value)
+
+            val pacientesResult = syncPacientes()
+            if (pacientesResult.isFailure) {
+                val errorState = SyncState(
+                    isLoading = false,
+                    error = pacientesResult.exceptionOrNull()?.message,
+                    message = "Erro ao sincronizar pacientes"
                 )
                 _syncState.value = errorState
                 emit(errorState)
@@ -104,52 +112,14 @@ class SyncRepositoryImpl @Inject constructor(
             _syncState.value = successState
             emit(successState)
 
-            // Atualizar timestamp da última sincronização
             updateLastSyncTimestamp(System.currentTimeMillis())
 
         } catch (e: Exception) {
+            Log.e(TAG, "Erro inesperado durante sincronização", e)
             val errorState = SyncState(
                 isLoading = false,
                 error = e.message,
                 message = "Erro inesperado durante a sincronização"
-            )
-            _syncState.value = errorState
-            emit(errorState)
-        }
-    }
-
-    override suspend fun startSyncPacientes(): Flow<SyncState> = flow {
-        _syncState.value = SyncState(
-            isLoading = true,
-            message = "Sincronizando pacientes...",
-            error = null
-        )
-        emit(_syncState.value)
-
-        try {
-            val result = syncPacientes()
-            if (result.isSuccess) {
-                val successState = SyncState(
-                    isLoading = false,
-                    message = "Pacientes sincronizados com sucesso!",
-                    lastSyncTime = System.currentTimeMillis()
-                )
-                _syncState.value = successState
-                emit(successState)
-            } else {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = result.exceptionOrNull()?.message,
-                    message = "Erro ao sincronizar pacientes"
-                )
-                _syncState.value = errorState
-                emit(errorState)
-            }
-        } catch (e: Exception) {
-            val errorState = SyncState(
-                isLoading = false,
-                error = e.message,
-                message = "Erro inesperado"
             )
             _syncState.value = errorState
             emit(errorState)
@@ -194,13 +164,218 @@ class SyncRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun startSyncPacientes(): Flow<SyncState> = flow {
+        _syncState.value = SyncState(
+            isLoading = true,
+            message = "Sincronizando pacientes...",
+            error = null
+        )
+        emit(_syncState.value)
+
+        try {
+            val result = syncPacientes()
+            if (result.isSuccess) {
+                val successState = SyncState(
+                    isLoading = false,
+                    message = "Pacientes sincronizados com sucesso!",
+                    lastSyncTime = System.currentTimeMillis()
+                )
+                _syncState.value = successState
+                emit(successState)
+            } else {
+                val errorState = SyncState(
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message,
+                    message = "Erro ao sincronizar pacientes"
+                )
+                _syncState.value = errorState
+                emit(errorState)
+            }
+        } catch (e: Exception) {
+            val errorState = SyncState(
+                isLoading = false,
+                error = e.message,
+                message = "Erro inesperado"
+            )
+            _syncState.value = errorState
+            emit(errorState)
+        }
+    }
+
+    override suspend fun syncEspecialidades(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando syncEspecialidades")
+
+            // Verificar conexão
+            if (!networkManager.checkConnection()) {
+                Log.e(TAG, "Sem conexão com internet")
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+
+            // Testar servidor
+            if (!networkManager.testServerConnection()) {
+                Log.e(TAG, "Servidor não acessível")
+                return Result.failure(Exception("Servidor não acessível"))
+            }
+
+            Log.d(TAG, "Fazendo chamada para API...")
+
+            // Fazer chamada para API
+            val response = apiService.getAllEspecialidades()
+
+            if (response.isSuccessful) {
+                val apiResponse = response.body()
+
+                if (apiResponse?.success == true) {
+                    val especialidadesDto = apiResponse.data ?: emptyList()
+                    Log.d(TAG, "Recebidas ${especialidadesDto.size} especialidades do servidor")
+
+                    if (especialidadesDto.isNotEmpty()) {
+                        // Converter DTO para Entity e salvar no banco
+                        val especialidadesEntity = especialidadesDto.toEntityList(
+                            deviceId = "default_device",
+                            syncStatus = SyncStatus.SYNCED
+                        )
+
+                        val currentEspecialidades = especialidadeDao.getAllEspecialidadesList()
+                        Log.d(TAG, "Especialidades atuais no banco: ${currentEspecialidades.size}")
+
+                        // DEBUG: Mostrar dados recebidos do servidor
+                        Log.d(TAG, "=== DADOS DO SERVIDOR ===")
+                        especialidadesDto.forEachIndexed { index, dto ->
+                            Log.d(TAG, "[$index] Nome: ${dto.nome}, ServerId: ${dto.serverId}, LocalId: '${dto.localId}'")
+                        }
+
+                        Log.d(TAG, "=== ENTIDADES CONVERTIDAS ===")
+                        especialidadesEntity.forEachIndexed { index, entity ->
+                            Log.d(TAG, "[$index] Nome: ${entity.nome}, ServerId: ${entity.serverId}, LocalId: '${entity.localId}'")
+                        }
+
+                        // Processar cada especialidade
+                        especialidadesEntity.forEach { entity ->
+                            // CORREÇÃO: Verificar se serverId não é null E se localId não está vazio
+                            if (entity.serverId != null && entity.localId.isNotBlank()) {
+                                // Verifica se já existe uma especialidade com o mesmo serverId
+                                val existingByServerId = especialidadeDao.getEspecialidadeByServerId(entity.serverId)
+
+                                Log.d(TAG, "Processando: ${entity.nome}")
+                                Log.d(TAG, "  - LocalId: '${entity.localId}'")
+                                Log.d(TAG, "  - ServerId: ${entity.serverId}")
+                                Log.d(TAG, "  - Existing by ServerId: $existingByServerId")
+
+                                if (existingByServerId == null) {
+                                    // ADICIONAL: Verificar se já existe uma especialidade com o mesmo nome
+                                    // Isso previne duplicação quando uma especialidade local vira sincronizada
+                                    val existingByName = especialidadeDao.getEspecialidadeByName(entity.nome)
+
+                                    if (existingByName != null && existingByName.serverId == null) {
+                                        // Atualizar a especialidade local existente com os dados do servidor
+                                        val updatedEntity = existingByName.copy(
+                                            serverId = entity.serverId,
+                                            syncStatus = SyncStatus.SYNCED,
+                                            updatedAt = entity.updatedAt,
+                                            lastSyncTimestamp = System.currentTimeMillis()
+                                        )
+                                        especialidadeDao.updateEspecialidade(updatedEntity)
+                                        Log.d(TAG, "Atualizada especialidade local existente: ${entity.nome} (serverId: ${entity.serverId})")
+                                    } else {
+                                        // Inserir nova especialidade
+                                        especialidadeDao.insertEspecialidade(entity)
+                                        Log.d(TAG, "Inserida nova especialidade: ${entity.nome} (serverId: ${entity.serverId})")
+                                    }
+                                } else if (existingByServerId.updatedAt < entity.updatedAt) {
+                                    // Manter o localId original, mas atualizar outros dados
+                                    val updatedEntity = entity.copy(localId = existingByServerId.localId)
+                                    especialidadeDao.updateEspecialidade(updatedEntity)
+                                    Log.d(TAG, "Atualizada especialidade: ${entity.nome} (serverId: ${entity.serverId})")
+                                } else {
+                                    Log.d(TAG, "Especialidade já está atualizada: ${entity.nome} (serverId: ${entity.serverId})")
+                                }
+                            } else {
+                                Log.w(TAG, "ServerId é null ou LocalId está vazio para especialidade: ${entity.nome} - Dados: ServerId=${entity.serverId}, LocalId='${entity.localId}' - Ignorando...")
+                            }
+                        }
+
+                        // DEBUG final: Mostrar estado após processamento
+                        val finalEspecialidades = especialidadeDao.getAllEspecialidadesList()
+                        Log.d(TAG, "Especialidades após sync: ${finalEspecialidades.size}")
+                        finalEspecialidades.forEach { esp ->
+                            Log.d(TAG, "Final DB: ${esp.nome} - LocalId: '${esp.localId}' - ServerId: ${esp.serverId}")
+                        }
+
+                    } else {
+                        Log.w(TAG, "Nenhuma especialidade retornada do servidor")
+                    }
+
+                    Log.d(TAG, "Sincronização de especialidades concluída com sucesso")
+                    Result.success(Unit)
+                } else {
+                    val error = apiResponse?.error ?: "Resposta da API indica falha"
+                    Log.e(TAG, "Erro na resposta da API: $error")
+                    Result.failure(Exception(error))
+                }
+            } else {
+                val error = "Erro HTTP: ${response.code()} - ${response.message()}"
+                Log.e(TAG, error)
+                Result.failure(Exception(error))
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro em syncEspecialidades", e)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun syncPacientes(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando syncPacientes")
+
+            if (!networkManager.checkConnection()) {
+                Log.e(TAG, "Sem conexão com internet")
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+
+            if (!networkManager.testServerConnection()) {
+                Log.e(TAG, "Servidor não acessível")
+                return Result.failure(Exception("Servidor não acessível"))
+            }
+
+            val lastSync = getLastSyncTimestamp()
+
+            // Usar o método existente que funciona com Flow
+            syncPacientes(lastSync).collect { result ->
+                when (result) {
+                    is ApiResult.Success -> {
+                        Log.d(TAG, "SUCESSO! Recebidos ${result.data.size} pacientes")
+                        // Aqui você implementaria a lógica para salvar no banco local
+                        // pacienteRepository.syncFromServer(result.data)
+                    }
+                    is ApiResult.Error -> {
+                        Log.e(TAG, "Erro na API: ${result.exception}")
+                        throw Exception(result.exception)
+                    }
+                    is ApiResult.Loading -> {
+                        Log.d(TAG, "Carregando pacientes...")
+                    }
+                }
+            }
+
+            Log.d(TAG, "syncPacientes concluído com sucesso")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro em syncPacientes", e)
+            Result.failure(e)
+        }
+    }
+
     // Método existente para compatibilidade
     fun syncPacientes(lastSyncTimestamp: Long): Flow<ApiResult<List<PacienteDto>>> = flow {
         emit(ApiResult.Loading())
 
         try {
             if (!networkManager.checkConnection()) {
-                emit(ApiResult.Error(Exception("Sem conexão com a internet")))
+                emit(ApiResult.Error("Sem conexão com a internet"))
                 return@flow
             }
 
@@ -211,13 +386,13 @@ class SyncRepositoryImpl @Inject constructor(
                 if (apiResponse?.success == true) {
                     emit(ApiResult.Success(apiResponse.data ?: emptyList()))
                 } else {
-                    emit(ApiResult.Error(Exception(apiResponse?.error ?: "Erro desconhecido")))
+                    emit(ApiResult.Error(apiResponse?.error ?: "Erro desconhecido"))
                 }
             } else {
-                emit(ApiResult.Error(Exception("Erro HTTP: ${response.code()}")))
+                emit(ApiResult.Error("Erro HTTP: ${response.code()}"))
             }
         } catch (e: Exception) {
-            emit(ApiResult.Error(e))
+            emit(ApiResult.Error(e.toString()))
         }
     }
 
@@ -229,23 +404,24 @@ class SyncRepositoryImpl @Inject constructor(
                 if (apiResponse?.success == true && apiResponse.data != null) {
                     ApiResult.Success(apiResponse.data)
                 } else {
-                    ApiResult.Error(Exception(apiResponse?.error ?: "Erro ao criar paciente"))
+                    ApiResult.Error(apiResponse?.error ?: "Erro ao criar paciente")
                 }
             } else {
-                ApiResult.Error(Exception("Erro HTTP: ${response.code()}"))
+                ApiResult.Error("Erro HTTP: ${response.code()}")
             }
         } catch (e: Exception) {
-            ApiResult.Error(e)
+            ApiResult.Error(e.toString())
         }
     }
 
     override suspend fun syncAll(): Result<Unit> {
         return try {
-            val pacientesResult = syncPacientes()
-            if (pacientesResult.isFailure) return pacientesResult
-
+            // Sincronizar especialidades primeiro (são menos dados e necessárias para outras operações)
             val especialidadesResult = syncEspecialidades()
             if (especialidadesResult.isFailure) return especialidadesResult
+
+            val pacientesResult = syncPacientes()
+            if (pacientesResult.isFailure) return pacientesResult
 
             updateLastSyncTimestamp(System.currentTimeMillis())
             Result.success(Unit)
@@ -254,92 +430,21 @@ class SyncRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun syncPacientes(): Result<Unit> {
-        return try {
-            Log.d("SyncRepository", "Iniciando syncPacientes - FAZENDO CONEXÃO REAL")
-
-            // VERIFICAR CONEXÃO
-            if (!networkManager.checkConnection()) {
-                Log.e("SyncRepository", "Sem conexão com internet")
-                return Result.failure(Exception("Sem conexão com internet"))
-            }
-
-            // TESTAR SERVIDOR
-            Log.d("SyncRepository", "Testando conexão com servidor...")
-            val serverOk = networkManager.testServerConnection()
-            if (!serverOk) {
-                Log.e("SyncRepository", "Servidor não acessível")
-                return Result.failure(Exception("Servidor não acessível"))
-            }
-
-            Log.d("SyncRepository", "Servidor OK! Buscando pacientes...")
-
-            // FAZER CONEXÃO REAL - usando o método que já existe
-            val lastSync = getLastSyncTimestamp()
-
-            // Usar o método syncPacientes que já funciona
-            syncPacientes(lastSync).collect { result ->
-                when (result) {
-                    is ApiResult.Success -> {
-                        Log.d("SyncRepository", "SUCESSO! Recebidos ${result.data.size} pacientes")
-                        // Aqui você salvaria no banco local:
-                        // pacienteRepository.syncFromServer(result.data)
-                    }
-                    is ApiResult.Error -> {
-                        Log.e("SyncRepository", "Erro na API: ${result.exception.message}")
-                        throw result.exception
-                    }
-                    is ApiResult.Loading -> {
-                        Log.d("SyncRepository", "Carregando...")
-                    }
-                }
-            }
-
-            Log.d("SyncRepository", "syncPacientes concluído com sucesso")
-            Result.success(Unit)
-
-        } catch (e: Exception) {
-            Log.e("SyncRepository", "Erro em syncPacientes", e)
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun syncEspecialidades(): Result<Unit> {
-        return try {
-            Log.d("SyncRepository", "Iniciando syncEspecialidades")
-
-            // Por enquanto, só testar se o servidor responde
-            if (!networkManager.testServerConnection()) {
-                return Result.failure(Exception("Servidor não acessível"))
-            }
-
-            // TODO: Implementar busca de especialidades
-            // val response = apiService.getEspecialidades()
-
-            Log.d("SyncRepository", "syncEspecialidades concluído")
-            Result.success(Unit)
-
-        } catch (e: Exception) {
-            Log.e("SyncRepository", "Erro em syncEspecialidades", e)
-            Result.failure(e)
-        }
-    }
-
     override suspend fun hasPendingChanges(): Boolean {
-        // Implementar verificação se há mudanças pendentes
-        // Verificar no banco local se há registros marcados como "pending sync"
-        return false
+        // Verificar se há mudanças pendentes tanto em especialidades quanto em pacientes
+        return especialidadeRepository.hasPendingChanges()
+        // || pacienteRepository.hasPendingChanges() // implementar quando necessário
     }
 
     override suspend fun getLastSyncTimestamp(): Long {
-        // Implementar busca do timestamp da última sincronização
-        // Pode ser armazenado em SharedPreferences ou na base de dados
+        // Por enquanto retorna 0, mas você pode implementar usando SharedPreferences
+        // ou uma tabela de metadados no banco
         return 0L
     }
 
     override suspend fun updateLastSyncTimestamp(timestamp: Long) {
-        // Implementar atualização do timestamp
-        // Salvar em SharedPreferences ou na base de dados
+        // Implementar salvamento do timestamp da última sincronização
+        // Pode usar SharedPreferences ou salvar no banco
     }
 
     override fun clearError() {

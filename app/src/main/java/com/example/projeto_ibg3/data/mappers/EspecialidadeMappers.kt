@@ -4,6 +4,9 @@ import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
 import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.model.Especialidade
+import java.util.UUID
+
+//EspecialidadeMapper.kt
 
 // ============================================================================
 // MAPPERS INDIVIDUAIS - ENTITY ↔ DOMAIN MODEL
@@ -40,11 +43,11 @@ fun Especialidade.toEntity(
     )
 }
 
-// DTO para Domain Model
+// DTO para Domain Model - CORRIGIDO
 fun EspecialidadeDto.toDomain(): Especialidade {
     return Especialidade(
         localId = this.localId,
-        serverId = this.serverId,
+        serverId = this.serverId, // Agora mapeia corretamente para "id" do JSON
         nome = this.nome
     )
 }
@@ -53,34 +56,39 @@ fun EspecialidadeDto.toDomain(): Especialidade {
 // MAPPERS INDIVIDUAIS - DTO ↔ ENTITY
 // ============================================================================
 
-// Converter DTO para Entity
+// Converter DTO para Entity - CORRIGIDO
 fun EspecialidadeDto.toEntity(
     deviceId: String,
     syncStatus: SyncStatus = SyncStatus.SYNCED
 ): EspecialidadeEntity {
+    val validLocalId = if (this.localId.isNullOrBlank()) {
+        UUID.randomUUID().toString()
+    } else {
+        this.localId
+    }
     return EspecialidadeEntity(
-        localId = this.localId ?: "",
-        serverId = this.serverId,
+        localId = validLocalId,
+        serverId = this.serverId, // Agora mapeia corretamente
         nome = this.nome,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.createdAt ?: System.currentTimeMillis(),
-        updatedAt = this.updatedAt ?: System.currentTimeMillis(),
-        lastSyncTimestamp = this.lastSyncTimestamp,
-        isDeleted = this.isDeleted
+        createdAt = this.getCreatedAtTimestamp(), // CORRIGIDO: converter data ISO
+        updatedAt = this.getUpdatedAtTimestamp(), // CORRIGIDO: converter data ISO
+        lastSyncTimestamp = this.lastSyncTimestamp ?: System.currentTimeMillis(),
+        isDeleted = this.isDeleted ?: false
     )
 }
 
 // Converter Entity para DTO
 fun EspecialidadeEntity.toDto(): EspecialidadeDto {
     return EspecialidadeDto(
-        serverId = this.serverId,
+        serverId = this.serverId, // Mapeia corretamente
         localId = this.localId,
         nome = this.nome,
         deviceId = this.deviceId,
         lastSyncTimestamp = this.lastSyncTimestamp,
-        createdAt = this.createdAt,
-        updatedAt = this.updatedAt,
+        createdAt = null, // Converter timestamp para ISO se necessário
+        updatedAt = null, // Converter timestamp para ISO se necessário
         isDeleted = this.isDeleted
     )
 }
@@ -94,15 +102,20 @@ fun EspecialidadeEntity.toDomain(): Especialidade {
     )
 }
 
+// ENTITY → DOMAIN (LIST)
+fun List<EspecialidadeEntity>.toDomain(): List<Especialidade> {
+    return this.map { it.toDomain() }
+}
+
 // ============================================================================
 // MAPPERS INDIVIDUAIS - DTO ↔ DOMAIN MODEL
 // ============================================================================
 
-// Converter DTO para Domain Model
+// Converter DTO para Domain Model - CORRIGIDO
 fun EspecialidadeDto.toDomainModel(): Especialidade {
     return Especialidade(
-        localId = this.localId ?: "",
-        serverId = this.serverId,
+        localId = this.localId,
+        serverId = this.serverId, // Agora mapeia corretamente
         nome = this.nome
     )
 }
@@ -116,13 +129,13 @@ fun Especialidade.toDto(
     isDeleted: Boolean = false
 ): EspecialidadeDto {
     return EspecialidadeDto(
-        serverId = this.serverId,
+        serverId = this.serverId, // Mapeia corretamente
         localId = this.localId,
         nome = this.nome,
         deviceId = deviceId,
         lastSyncTimestamp = lastSyncTimestamp,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
+        createdAt = null, // Converter timestamp para ISO se necessário
+        updatedAt = null, // Converter timestamp para ISO se necessário
         isDeleted = isDeleted
     )
 }

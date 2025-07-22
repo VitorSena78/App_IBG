@@ -1,6 +1,7 @@
 package com.example.projeto_ibg3.data.remote.api
 
 import com.google.gson.annotations.SerializedName
+import java.time.LocalDateTime
 
 data class ApiResponse<T>(
     @SerializedName("success")
@@ -16,5 +17,5 @@ data class ApiResponse<T>(
     val error: String? = null,
 
     @SerializedName("timestamp")
-    val timestamp: Long? = null
+    val timestamp: String? = null
 )

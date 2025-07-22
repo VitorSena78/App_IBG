@@ -8,7 +8,7 @@ interface SyncRepository {
     // Métodos existentes
     suspend fun syncAll(): Result<Unit>
     suspend fun syncPacientes(): Result<Unit>
-    suspend fun syncEspecialidades(): Result<Unit>
+    suspend fun syncEspecialidades(): Result<Unit> //mudar para Response<ApiResponse<List<EspecialidadeDto>>>
     suspend fun hasPendingChanges(): Boolean
     suspend fun getLastSyncTimestamp(): Long
     suspend fun updateLastSyncTimestamp(timestamp: Long)

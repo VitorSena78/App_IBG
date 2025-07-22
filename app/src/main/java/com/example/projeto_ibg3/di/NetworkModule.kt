@@ -17,9 +17,13 @@ import java.util.concurrent.TimeUnit
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+    // FORMATO URL:
+    // Para servidor local: "http://192.168.1.100:8080/api/"
+    // Para servidor remoto: "https://meudominio.com/api/"
+    // Para emulador Android: "http://10.0.2.2:8080/api/"
 
     // URL base da sua API
-    private const val BASE_URL = "https://api.seuservidor.com/api/v1/"
+    private const val BASE_URL = "http://192.168.100.53:8080/api/"
 
     @Provides
     @Singleton

@@ -3,6 +3,7 @@ package com.example.projeto_ibg3.data.remote.api
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,7 +13,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class NetworkManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val apiService: ApiService
 ) {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
@@ -32,9 +34,12 @@ class NetworkManager @Inject constructor(
 
     suspend fun testServerConnection(): Boolean {
         return try {
-            val response = ApiConfig.getApiService().healthCheck()
+            val response = apiService.healthCheck()
+            Log.d("TestServer", "Resposta do servidor: ${response.body()}")
             response.isSuccessful
+
         } catch (e: Exception) {
+            Log.e("TestServer", "Erro ao conectar com o servidor: ${e.message}", e)
             false
         }
     }

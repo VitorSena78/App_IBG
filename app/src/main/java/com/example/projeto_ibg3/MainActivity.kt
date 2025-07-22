@@ -1,6 +1,7 @@
 package com.example.projeto_ibg3
 
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import com.google.android.material.navigation.NavigationView
@@ -12,7 +13,10 @@ import androidx.navigation.ui.setupWithNavController
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.example.projeto_ibg3.databinding.ActivityMainBinding
+import com.google.gson.JsonObject
 import dagger.hilt.android.AndroidEntryPoint
+import retrofit2.Call
+import retrofit2.Response
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -41,6 +45,8 @@ class MainActivity : AppCompatActivity() {
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
+
+        getEspecialidades()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -85,5 +91,9 @@ class MainActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
+    }
+
+     fun getEspecialidades(){
+
     }
 }

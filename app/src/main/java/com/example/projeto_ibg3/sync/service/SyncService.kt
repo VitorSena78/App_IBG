@@ -81,7 +81,7 @@ class SyncService(
     }
 
     private suspend fun syncEspecialidades() {
-        try {
+        /*try {
             val response = apiService.getAllEspecialidades()
             if (response.isSuccessful) {
                 response.body()?.let { apiResponse ->
@@ -92,7 +92,7 @@ class SyncService(
             }
         } catch (e: Exception) {
             println("Erro ao sincronizar especialidades: ${e.message}")
-        }
+        }*/
     }
 
     private suspend fun separateOperationsByType(
@@ -504,7 +504,7 @@ class SyncService(
             if (response.isSuccessful) {
                 response.body()?.let { apiResponse ->
                     if (apiResponse.success && apiResponse.data != null) {
-                        updateLocalEspecialidades(apiResponse.data) // ✅ CORRETO
+                        updateLocalEspecialidades(apiResponse.data)
                     }
                 }
             }
