@@ -21,15 +21,19 @@ import com.example.projeto_ibg3.R
 import com.example.projeto_ibg3.presentation.ui.Lista.adapter.PacienteAdapter
 import com.example.projeto_ibg3.presentation.ui.Lista.adapter.PacienteAdapterCallback
 import com.example.projeto_ibg3.domain.model.Paciente
-import com.example.projeto_ibg3.presentation.common.viewmodel.PacienteViewModel
+import com.example.projeto_ibg3.domain.model.SyncState
+import com.example.projeto_ibg3.domain.model.SyncStatus
+import com.example.projeto_ibg3.presentation.ui.Lista.adapter.ExtendedPacienteAdapterCallback
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
 @AndroidEntryPoint
-class ListaFragment : Fragment(), PacienteAdapterCallback {
+class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
 
     private lateinit var recyclerPacientes: RecyclerView
     private lateinit var btnAddPaciente: MaterialButton
@@ -37,8 +41,15 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
     private lateinit var tvTotalPacientes: TextView
     private lateinit var layoutEmptyState: LinearLayout
 
+    // Componentes de sincronização
+    private lateinit var cardSyncStatus: MaterialCardView
+    private lateinit var progressSync: CircularProgressIndicator
+    private lateinit var tvSyncStatus: TextView
+    private lateinit var tvSyncDetails: TextView
+    private lateinit var btnRetrySync: MaterialButton
+
     private lateinit var pacienteAdapter: PacienteAdapter
-    private val viewModel: PacienteViewModel by viewModels()
+    private val viewModel: ListaViewModel by viewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -54,9 +65,10 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
         setupViews(view)
         setupRecyclerView()
         setupSearch()
+        setupSyncComponents()
         observeViewModel()
 
-        // Carregar dados iniciais
+        // Carregar dados iniciais (a sincronização já será automática)
         viewModel.loadPacientes()
     }
 
@@ -66,6 +78,13 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
         etSearch = view.findViewById(R.id.et_search)
         tvTotalPacientes = view.findViewById(R.id.tv_total_pacientes)
         layoutEmptyState = view.findViewById(R.id.layout_empty_state)
+
+        // Componentes de sincronização
+        cardSyncStatus = view.findViewById(R.id.card_sync_status)
+        progressSync = view.findViewById(R.id.progress_sync)
+        tvSyncStatus = view.findViewById(R.id.tv_sync_status)
+        tvSyncDetails = view.findViewById(R.id.tv_sync_details)
+        btnRetrySync = view.findViewById(R.id.btn_retry_sync)
 
         btnAddPaciente.setOnClickListener {
             navigateToAddPaciente()
@@ -92,7 +111,13 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
     private fun setupSearch() {
         etSearch.addTextChangedListener { text ->
             val query = text?.toString()?.trim() ?: ""
-            viewModel.searchPacientes(query)
+            viewModel.updateSearchQuery(query)
+        }
+    }
+
+    private fun setupSyncComponents() {
+        btnRetrySync.setOnClickListener {
+            viewModel.retryFailedSync()
         }
     }
 
@@ -115,6 +140,136 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
                 viewModel.clearError()
             }
         }.launchIn(lifecycleScope)
+
+        // Observar estado de sincronização
+        viewModel.syncState.onEach { syncState ->
+            updateSyncStatus(syncState)
+        }.launchIn(lifecycleScope)
+
+        // Observar estatísticas de sincronização
+        viewModel.syncStats.onEach { stats ->
+            updateSyncStats(stats)
+        }.launchIn(lifecycleScope)
+
+        // Observar estatísticas da lista
+        viewModel.getListStats().onEach { stats ->
+            updateListStats(stats)
+        }.launchIn(lifecycleScope)
+    }
+
+    private fun updateSyncStatus(syncState: SyncState) {
+        when {
+            syncState.isSyncing -> {
+                showSyncStatus(
+                    message = "Sincronizando...",
+                    showProgress = true,
+                    showRetry = false
+                )
+            }
+
+            syncState.error != null -> {
+                showSyncStatus(
+                    message = "Erro na sincronização",
+                    details = syncState.error,
+                    showProgress = false,
+                    showRetry = true
+                )
+            }
+
+            syncState.isComplete && syncState.hasChanges -> {
+                showSyncStatus(
+                    message = "Sincronização concluída",
+                    showProgress = false,
+                    showRetry = false
+                )
+
+                // Ocultar após 3 segundos
+                view?.postDelayed({
+                    hideSyncStatus()
+                }, 3000)
+            }
+
+            else -> {
+                hideSyncStatus()
+            }
+        }
+    }
+
+    private fun updateSyncStats(stats: ListaViewModel.SyncStats) {
+        when {
+            stats.conflicts > 0 -> {
+                showSyncStatus(
+                    message = "Conflitos encontrados",
+                    details = "${stats.conflicts} conflito(s) precisam ser resolvidos",
+                    showProgress = false,
+                    showRetry = false,
+                    isWarning = true
+                )
+            }
+
+            stats.pendingSync > 0 && !stats.isOnline -> {
+                showSyncStatus(
+                    message = "Offline",
+                    details = "${stats.pendingSync} item(ns) pendente(s)",
+                    showProgress = false,
+                    showRetry = false,
+                    isWarning = true
+                )
+            }
+
+            stats.pendingSync > 0 && stats.isOnline -> {
+                // Não mostrar para poucos itens pendentes, deixar a sincronização automática trabalhar
+                if (stats.pendingSync > 5) {
+                    showSyncStatus(
+                        message = "Sincronizando em background",
+                        details = "${stats.pendingSync} item(ns) pendente(s)",
+                        showProgress = true,
+                        showRetry = false
+                    )
+                }
+            }
+        }
+    }
+
+    private fun updateListStats(stats: ListaViewModel.ListStats) {
+        // Atualizar indicadores visuais na lista se necessário
+        // Por exemplo, mostrar badges nos itens com problemas de sincronização
+    }
+
+    private fun showSyncStatus(
+        message: String,
+        details: String? = null,
+        showProgress: Boolean = false,
+        showRetry: Boolean = false,
+        isWarning: Boolean = false
+    ) {
+        cardSyncStatus.visibility = View.VISIBLE
+        tvSyncStatus.text = message
+
+        if (details != null) {
+            tvSyncDetails.text = details
+            tvSyncDetails.visibility = View.VISIBLE
+        } else {
+            tvSyncDetails.visibility = View.GONE
+        }
+
+        progressSync.visibility = if (showProgress) View.VISIBLE else View.GONE
+        btnRetrySync.visibility = if (showRetry) View.VISIBLE else View.GONE
+
+        // Mudar cores baseado no tipo de status
+        val backgroundColor = if (isWarning) {
+            R.color.warning_background
+        } else {
+            R.color.sync_status_background
+        }
+
+        cardSyncStatus.setCardBackgroundColor(
+            resources.getColor(backgroundColor, null)
+        )
+    }
+
+    private fun hideSyncStatus() {
+        cardSyncStatus.visibility = View.GONE
     }
 
     private fun updateEmptyState(isEmpty: Boolean) {
@@ -146,16 +301,15 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
 
     // Implementação das callbacks do adapter
     override fun onPacienteClick(paciente: Paciente) {
-        // Usar o mesmo nome de constante do PacienteDetalheFragment
         val bundle = Bundle().apply {
-            putString("paciente_id", paciente.localId.toString()) // Envia apenas o ID do paciente
+            putString("paciente_id", paciente.localId.toString())
         }
         findNavController().navigate(R.id.action_lista_to_pacienteDetalhe, bundle)
     }
 
     override fun onEditPaciente(paciente: Paciente) {
         val bundle = Bundle().apply {
-            putString("pacienteLocalId", paciente.localId.toString()) // Mudança aqui também
+            putString("pacienteLocalId", paciente.localId.toString())
         }
         findNavController().navigate(R.id.action_lista_to_editPaciente, bundle)
     }
@@ -168,12 +322,54 @@ class ListaFragment : Fragment(), PacienteAdapterCallback {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Não foi possível realizar a ligação", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "Não foi possível realizar a ligação",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     override fun onViewDetails(paciente: Paciente) {
         onPacienteClick(paciente)
+    }
+
+    // Implementação dos callbacks estendidos para sincronização
+    override fun onResolveConflictKeepLocal(paciente: Paciente) {
+        viewModel.resolveConflictKeepLocal(paciente.localId)
+        Toast.makeText(requireContext(), "Mantendo versão local", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onResolveConflictKeepServer(paciente: Paciente) {
+        viewModel.resolveConflictKeepServer(paciente.localId)
+        Toast.makeText(requireContext(), "Usando versão do servidor", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onRetrySync(paciente: Paciente) {
+        viewModel.retryFailedSync()
+        Toast.makeText(requireContext(), "Tentando sincronizar novamente", Toast.LENGTH_SHORT)
+            .show()
+    }
+
+    override fun onRestorePaciente(paciente: Paciente) {
+        viewModel.restorePaciente(paciente.localId)
+        Toast.makeText(requireContext(), "Paciente restaurado", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onForceSyncPaciente(paciente: Paciente) {
+        viewModel.syncPacientes()
+        Toast.makeText(requireContext(), "Forçando sincronização", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Quando o fragmento volta ao foco, verificar se há mudanças para sincronizar
+        // A sincronização automática já cuidará disso, mas podemos forçar uma verificação
+        viewModel.hasPendingChanges().onEach { hasPending ->
+            if (hasPending) {
+                android.util.Log.d("ListaFragment", "Pending changes detected on resume")
+            }
+        }.launchIn(lifecycleScope)
     }
 
     companion object {

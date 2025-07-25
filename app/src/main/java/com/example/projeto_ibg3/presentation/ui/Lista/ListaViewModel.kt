@@ -10,6 +10,7 @@ import com.example.projeto_ibg3.domain.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 @HiltViewModel
@@ -82,15 +83,19 @@ class ListaViewModel @Inject constructor(
         // Carregar dados iniciais
         loadPacientes()
 
-        // Observar mudanças de conectividade e sincronizar automaticamente
+        // Iniciar sincronização automática em background
+        startAutoSync()
+
+        // Observar mudanças de conectividade
         observeConnectivityChanges()
+
+        // Observar mudanças nos dados para sincronização
+        observeDataChangesForSync()
     }
 
     // ==================== MÉTODOS PÚBLICOS ====================
 
-    /**
-     * Carrega a lista de pacientes
-     */
+    //Carrega a lista de pacientes
     fun loadPacientes() {
         viewModelScope.launch {
             try {
@@ -108,34 +113,25 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Atualiza a query de busca
-     */
+    //Atualiza a query de busca
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
     }
 
-    /**
-     * Limpa a busca
-     */
+    //Limpa a busca
     fun clearSearch() {
         _searchQuery.value = ""
     }
 
-    /**
-     * Atualiza a lista (pull-to-refresh)
-     */
+    //Atualiza a lista (pull-to-refresh)
     fun refresh() {
         viewModelScope.launch {
             try {
                 _isRefreshing.value = true
                 _error.value = null
 
-                // Iniciar sincronização automática
-                syncRepository.startSync().collect { syncState ->
-                    // O estado de sincronização é observado automaticamente
-                    // através do syncState Flow
-                }
+                // Forçar sincronização imediata
+                forceSyncAll()
 
             } catch (e: Exception) {
                 _error.value = e.message ?: "Erro ao atualizar dados"
@@ -145,9 +141,7 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Força uma sincronização completa
-     */
+    //Força uma sincronização completa
     fun forceSyncAll() {
         viewModelScope.launch {
             syncRepository.startSync().collect {
@@ -156,9 +150,7 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Sincroniza apenas pacientes
-     */
+    //Sincroniza apenas pacientes
     fun syncPacientes() {
         viewModelScope.launch {
             syncRepository.startSyncPacientes().collect {
@@ -167,23 +159,22 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Marca um paciente para deleção (soft delete)
-     */
+    //Marca um paciente para deleção (soft delete)
     fun deletePaciente(paciente: Paciente) {
         viewModelScope.launch {
             try {
                 pacienteRepository.deletePaciente(paciente.localId)
                 clearError()
+
+                // Sincronização automática será acionada pela observação de mudanças
+
             } catch (e: Exception) {
                 _error.value = e.message ?: "Erro ao deletar paciente"
             }
         }
     }
 
-    /**
-     * Restaura um paciente deletado
-     */
+    //Restaura um paciente deletado
     fun restorePaciente(pacienteLocalId: String) {
         viewModelScope.launch {
             try {
@@ -195,9 +186,7 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Resolve conflito de sincronização escolhendo a versão local
-     */
+    //Resolve conflito de sincronização escolhendo a versão local
     fun resolveConflictKeepLocal(pacienteLocalId: String) {
         viewModelScope.launch {
             try {
@@ -209,9 +198,7 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Resolve conflito de sincronização escolhendo a versão do servidor
-     */
+    //Resolve conflito de sincronização escolhendo a versão do servidor
     fun resolveConflictKeepServer(pacienteLocalId: String) {
         viewModelScope.launch {
             try {
@@ -223,9 +210,7 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Tenta novamente a sincronização de itens com falha
-     */
+    //Tenta novamente a sincronização de itens com falha
     fun retryFailedSync() {
         viewModelScope.launch {
             try {
@@ -240,61 +225,157 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Limpa mensagens de erro
-     */
+    //Limpa mensagens de erro
     fun clearError() {
         _error.value = null
         syncRepository.clearError()
     }
 
-    /**
-     * Verifica se há mudanças pendentes
-     */
+    //Verifica se há mudanças pendentes
     fun hasPendingChanges(): Flow<Boolean> {
         return flow {
             emit(syncRepository.hasPendingChanges())
         }
     }
 
-    // ==================== MÉTODOS PRIVADOS ====================
+    // ==================== MÉTODOS PRIVADOS PARA SINCRONIZAÇÃO AUTOMÁTICA ====================
 
-    /**
-     * Observa mudanças de conectividade para sincronização automática
-     */
-    private fun observeConnectivityChanges() {
+    //Inicia sincronização automática em background
+    private fun startAutoSync() {
         viewModelScope.launch {
-            // Implementar observação de conectividade se necessário
-            // Por exemplo, usando ConnectivityManager ou uma biblioteca específica
+            try {
+                // Sincronização inicial após 2 segundos
+                delay(2000)
+                performBackgroundSync()
+
+                // Sincronização periódica a cada 5 minutos
+                while (true) {
+                    delay(300_000) // 5 minutos
+                    performBackgroundSync()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ListaViewModel", "Auto sync error", e)
+            }
         }
     }
 
-    /**
-     * Sincronização automática em background
-     */
-    private fun startBackgroundSync() {
-        viewModelScope.launch {
-            try {
-                // Sincronização silenciosa sem mostrar loading para o usuário
+    //Executa sincronização em background
+    private suspend fun performBackgroundSync() {
+        try {
+            // Verifica se há dados pendentes para sincronizar
+            val hasPending = syncRepository.hasPendingChanges()
+
+            if (hasPending) {
+                android.util.Log.d("ListaViewModel", "Starting background sync - pending changes detected")
+
                 syncRepository.startSync().collect { syncState ->
-                    // Log apenas, sem afetar UI
-                    if (syncState.error != null) {
-                        // Apenas log do erro, não mostrar para usuário em sync automática
-                        android.util.Log.w("ListaViewModel", "Background sync error: ${syncState.error}")
+                    when {
+                        syncState.error != null -> {
+                            android.util.Log.w("ListaViewModel", "Background sync error: ${syncState.error}")
+                        }
+                        syncState.isComplete -> {
+                            android.util.Log.d("ListaViewModel", "Background sync completed successfully")
+                        }
                     }
                 }
-            } catch (e: Exception) {
-                // Log apenas
-                android.util.Log.e("ListaViewModel", "Background sync failed", e)
+            } else {
+                // Mesmo sem mudanças pendentes, fazer uma sincronização leve para buscar atualizações do servidor
+                android.util.Log.d("ListaViewModel", "Starting light background sync - checking for server updates")
+
+                syncRepository.startSyncPacientes().collect { syncState ->
+                    // Log apenas, sem interferir na UI
+                    if (syncState.isComplete) {
+                        android.util.Log.d("ListaViewModel", "Light background sync completed")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ListaViewModel", "Background sync failed", e)
+        }
+    }
+
+    //Observa mudanças nos dados para acionar sincronização
+    private fun observeDataChangesForSync() {
+        viewModelScope.launch {
+            // Observa mudanças no número de itens pendentes
+            pacienteRepository.getPendingSyncCount()
+                .distinctUntilChanged()
+                .collect { pendingCount ->
+                    if (pendingCount > 0) {
+                        android.util.Log.d("ListaViewModel", "Data changes detected, scheduling sync")
+
+                        // Aguarda um pouco para agrupar múltiplas mudanças
+                        delay(5000) // 5 segundos
+
+                        // Verifica se ainda há mudanças pendentes
+                        if (syncRepository.hasPendingChanges()) {
+                            performBackgroundSync()
+                        }
+                    }
+                }
+        }
+    }
+
+    //Observa mudanças de conectividade para sincronização automática
+    private fun observeConnectivityChanges() {
+        viewModelScope.launch {
+            // Observa o estado de sincronização para detectar mudanças de conectividade
+            syncState
+                .map { it.error == null } // isOnline
+                .distinctUntilChanged()
+                .collect { isOnline ->
+                    if (isOnline) {
+                        android.util.Log.d("ListaViewModel", "Connectivity restored, starting sync")
+
+                        // Aguarda um pouco para estabilizar a conexão
+                        delay(3000)
+
+                        // Sincronizar quando a conectividade for restaurada
+                        performBackgroundSync()
+                    } else {
+                        android.util.Log.d("ListaViewModel", "Connectivity lost")
+                    }
+                }
+        }
+    }
+
+    //Sincronização inteligente baseada no contexto
+    private fun startIntelligentSync() {
+        viewModelScope.launch {
+            combine(
+                syncStats,
+                pacientes.map { it.size }
+            ) { stats, pacientesCount ->
+                Pair(stats, pacientesCount)
+            }.collect { (stats, count) ->
+
+                // Sincronizar se há conflitos ou muitos itens pendentes
+                when {
+                    stats.conflicts > 0 -> {
+                        android.util.Log.d("ListaViewModel", "Conflicts detected, syncing immediately")
+                        performBackgroundSync()
+                    }
+
+                    stats.pendingSync > 10 -> {
+                        android.util.Log.d("ListaViewModel", "Many pending items, syncing immediately")
+                        performBackgroundSync()
+                    }
+
+                    stats.pendingSync > 0 && stats.isOnline -> {
+                        // Sincronizar após um delay se há itens pendentes e está online
+                        delay(30000) // 30 segundos
+                        if (syncRepository.hasPendingChanges()) {
+                            performBackgroundSync()
+                        }
+                    }
+                }
             }
         }
     }
 
     // ==================== MÉTODOS DE UTILIDADE ====================
 
-    /**
-     * Obtém estatísticas rápidas da lista atual
-     */
+    //Obtém estatísticas rápidas da lista atual
     fun getListStats(): Flow<ListStats> {
         return pacientes.map { list ->
             ListStats(
@@ -312,18 +393,14 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Filtra pacientes por status de sincronização
-     */
+    //Filtra pacientes por status de sincronização
     fun getPacientesByStatus(status: SyncStatus): Flow<List<Paciente>> {
         return pacientes.map { list ->
             list.filter { it.syncStatus == status }
         }
     }
 
-    /**
-     * Obtém pacientes que precisam de atenção (conflitos, falhas, etc.)
-     */
+    //Obtém pacientes que precisam de atenção (conflitos, falhas, etc.)
     fun getPacientesNeedingAttention(): Flow<List<Paciente>> {
         return pacientes.map { list ->
             list.filter { paciente ->
@@ -338,9 +415,7 @@ class ListaViewModel @Inject constructor(
 
     // ==================== CLASSES DE DADOS ====================
 
-    /**
-     * Estatísticas de sincronização
-     */
+    //Estatísticas de sincronização
     data class SyncStats(
         val pendingSync: Int = 0,
         val conflicts: Int = 0,
@@ -354,9 +429,7 @@ class ListaViewModel @Inject constructor(
             get() = pendingSync > 0
     }
 
-    /**
-     * Estatísticas da lista
-     */
+    //Estatísticas da lista
     data class ListStats(
         val totalPacientes: Int = 0,
         val pacientesComConflito: Int = 0,
@@ -376,6 +449,6 @@ class ListaViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        // Cleanup se necessário
+        android.util.Log.d("ListaViewModel", "ViewModel cleared, stopping background sync")
     }
 }

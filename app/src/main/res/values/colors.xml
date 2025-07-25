@@ -51,4 +51,26 @@
     <color name="nav_header_text_primary">#FFFFFF</color>
     <color name="nav_header_text_secondary">#E3F2FD</color>
 
+    <!-- Cores para sincronização -->
+    <color name="sync_status_background">#E3F2FD</color>
+    <color name="warning_background">#FFF3E0</color>
+    <color name="success_background">#E8F5E8</color>
+    <color name="error_background">#FFEBEE</color>
+
+    <!-- Status de sincronização -->
+    <color name="sync_pending">#FF9800</color>
+    <color name="sync_success">#4CAF50</color>
+    <color name="sync_error">#F44336</color>
+    <color name="sync_conflict">#9C27B0</color>
+
+    <!-- Cores de sincronização -->
+    <color name="sync_in_progress">#2196F3</color>      <!-- Azul para em progresso -->
+
+    <!-- Cores com transparência para chips -->
+    <color name="sync_pending_light">#FFF3E0</color>
+    <color name="sync_in_progress_light">#E3F2FD</color>
+    <color name="sync_success_light">#E8F5E8</color>
+    <color name="sync_error_light">#FFEBEE</color>
+    <color name="sync_conflict_light">#F3E5F5</color>
+
 </resources>

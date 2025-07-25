@@ -8,5 +8,20 @@ data class SyncState(
     val error: String? = null,
     val lastSyncTime: Long = 0,
     val totalItems: Int = 0,
-    val processedItems: Int = 0
-)
+    val processedItems: Int = 0,
+
+    // Propriedades adicionais necessárias
+    val isSyncing: Boolean = isLoading, // Pode ser um alias para isLoading ou lógica própria
+    val isComplete: Boolean = false,
+    val hasChanges: Boolean = false
+) {
+    // Propriedades computadas opcionais
+    val progress: Float
+        get() = if (totalItems > 0) processedItems.toFloat() / totalItems else 0f
+
+    val isSuccess: Boolean
+        get() = isComplete && error == null
+
+    val hasError: Boolean
+        get() = error != null
+}
