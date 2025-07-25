@@ -13,6 +13,8 @@ import com.example.projeto_ibg3.domain.model.SyncStatus
 import java.text.SimpleDateFormat
 import java.util.*
 
+val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+
 // ==================== PACIENTE MAPPERS ====================
 
 /**
@@ -66,6 +68,7 @@ fun PacienteDto.toPacienteEntity(
         try {
             dateFormat.parse(it)?.time ?: 0L
         } catch (e: Exception) {
+            Log.e("SincMapper", "Erro ao converter dataNascimento: $it", e)
             0L
         }
     } ?: 0L
@@ -82,8 +85,8 @@ fun PacienteDto.toPacienteEntity(
         endereco = this.endereco,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.createdAt.toLong(),
-        updatedAt = this.updatedAt.toLong(),
+        createdAt = this.createdAt.toLongSafe(),
+        updatedAt = this.updatedAt.toLongSafe(),
         lastSyncTimestamp = System.currentTimeMillis(),
         isDeleted = this.isDeleted
     )
@@ -214,9 +217,7 @@ fun List<PacienteEspecialidadeEntity>.toPacienteEspecialidadeList(): List<Pacien
 
 // ==================== MAPPERS AUXILIARES ====================
 
-/**
- * Cria um PacienteEntity com valores padrão para novos registros
- */
+//Cria um PacienteEntity com valores padrão para novos registros
 fun createNewPacienteEntity(
     nome: String,
     nomeDaMae: String? = null,
@@ -374,4 +375,40 @@ fun PacienteEspecialidadeEntity.incrementSyncAttempts(error: String? = null): Pa
             else -> this.syncStatus
         }
     )
+}
+
+// Função para converter data ISO para timestamp Long
+fun String?.toIsoDateLong(): Long {
+    return try {
+        if (this.isNullOrBlank()) {
+            System.currentTimeMillis()
+        } else {
+            // Tenta primeiro o formato ISO completo
+            val date = isoDateFormat.parse(this)
+            date?.time ?: System.currentTimeMillis()
+        }
+    } catch (e: Exception) {
+        Log.e("SincMapper", "Erro ao converter data ISO: $this", e)
+        System.currentTimeMillis()
+    }
+}
+
+// Função para converter string para Long de forma segura
+fun String?.toLongSafe(): Long {
+    return try {
+        if (this.isNullOrBlank()) {
+            System.currentTimeMillis()
+        } else {
+            // Se for um número puro, converte direto
+            if (this.matches(Regex("\\d+"))) {
+                this.toLong()
+            } else {
+                // Se não for número, tenta como data ISO
+                this.toIsoDateLong()
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("SincMapper", "Erro ao converter para Long: $this", e)
+        System.currentTimeMillis()
+    }
 }
