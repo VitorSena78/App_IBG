@@ -22,7 +22,7 @@ data class PacienteDto(
     val nomeDaMae: String? = null,
 
     @SerializedName("cpf")
-    val cpf: String? = null,
+    val cpf: String,
 
     @SerializedName("sus")
     val sus: String? = null,
@@ -61,10 +61,10 @@ data class PacienteDto(
     val imc: Float? = null,
 
     @SerializedName("created_at")
-    val createdAt: String? = null,
+    val createdAt: String,
 
     @SerializedName("updated_at")
-    val updatedAt: String? = null,
+    val updatedAt: String,
 
     // NOVOS: Campos para sincronização
     @SerializedName("device_id")

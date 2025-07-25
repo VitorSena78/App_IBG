@@ -43,7 +43,7 @@ class PacienteAdapter(
 
                 // Configurar chips
                 chipCpf.text = "CPF: ${paciente.cpfFormatado}"
-                chipSus.visibility = if (paciente.sus.isNotEmpty()) View.VISIBLE else View.GONE
+                chipSus.visibility = if ((paciente.sus ?: "").isNotEmpty()) View.VISIBLE else View.GONE
 
                 // Click no item principal
                 root.setOnClickListener {

@@ -164,7 +164,7 @@ object PacienteMapperUtils {
             altura = primary.altura ?: secondary.altura,
             imc = primary.imc ?: secondary.imc,
             version = maxOf(primary.version ?: 0, secondary.version ?: 0),
-            updatedAt = listOfNotNull(primary.updatedAt, secondary.updatedAt).maxOrNull()
+            updatedAt = listOfNotNull(primary.updatedAt, secondary.updatedAt).max()
         )
     }
 

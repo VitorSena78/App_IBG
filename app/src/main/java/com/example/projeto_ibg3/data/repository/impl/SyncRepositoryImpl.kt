@@ -2,19 +2,21 @@ package com.example.projeto_ibg3.data.repository.impl
 
 import android.util.Log
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
-import com.example.projeto_ibg3.data.mappers.toDomain
+import com.example.projeto_ibg3.data.local.database.dao.PacienteDao
+import com.example.projeto_ibg3.data.local.database.dao.PacienteEspecialidadeDao
+import com.example.projeto_ibg3.data.mappers.*
 import com.example.projeto_ibg3.data.remote.api.ApiResult
 import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.example.projeto_ibg3.data.remote.api.NetworkManager
 import com.example.projeto_ibg3.data.remote.dto.PacienteDto
-import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
-import com.example.projeto_ibg3.data.mappers.toEntityList
+import com.example.projeto_ibg3.data.remote.dto.PacienteEspecialidadeDTO
 import com.example.projeto_ibg3.domain.model.SyncProgress
 import com.example.projeto_ibg3.domain.model.SyncState
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.repository.SyncRepository
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
 import com.example.projeto_ibg3.domain.repository.EspecialidadeRepository
+import com.example.projeto_ibg3.domain.repository.PacienteEspecialidadeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,14 +27,19 @@ import javax.inject.Singleton
 @Singleton
 class SyncRepositoryImpl @Inject constructor(
     private val networkManager: NetworkManager,
-    private val especialidadeDao: EspecialidadeDao, // <- Injete o DAO
+    private val especialidadeDao: EspecialidadeDao,
+    private val pacienteDao: PacienteDao,
+    private val pacienteEspecialidadeDao: PacienteEspecialidadeDao,
     private val pacienteRepository: PacienteRepository,
     private val especialidadeRepository: EspecialidadeRepository,
+    private val pacienteEspecialidadeRepository: PacienteEspecialidadeRepository,
     private val apiService: ApiService
 ): SyncRepository {
 
     companion object {
         private const val TAG = "SyncRepository"
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val BATCH_SIZE = 50
     }
 
     // Estados observáveis
@@ -41,6 +48,8 @@ class SyncRepositoryImpl @Inject constructor(
 
     private val _syncProgress = MutableStateFlow(SyncProgress())
     override val syncProgress: Flow<SyncProgress> = _syncProgress.asStateFlow()
+
+    // ==================== SINCRONIZAÇÃO COMPLETA ====================
 
     override suspend fun startSync(): Flow<SyncState> = flow {
         _syncState.value = SyncState(
@@ -52,62 +61,85 @@ class SyncRepositoryImpl @Inject constructor(
 
         try {
             if (!networkManager.checkConnection()) {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = "Sem conexão com a internet",
-                    message = "Verifique sua conexão"
-                )
+                val errorState = createErrorState("Sem conexão com a internet")
                 _syncState.value = errorState
                 emit(errorState)
                 return@flow
             }
 
-            // Etapa 1: Sincronizar Especialidades primeiro
-            _syncState.value = _syncState.value.copy(
-                message = "Sincronizando especialidades...",
-                totalItems = 2,
-                processedItems = 0
-            )
+            // Definir total de etapas
+            val totalSteps = 6 // Especialidades, Pacientes, PacienteEspecialidade (upload e download para cada)
+            var currentStep = 0
+
+            // Etapa 1: Sincronizar Especialidades
+            updateSyncState("Sincronizando especialidades...", currentStep++, totalSteps)
             emit(_syncState.value)
 
             val especialidadesResult = syncEspecialidades()
             if (especialidadesResult.isFailure) {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = especialidadesResult.exceptionOrNull()?.message,
-                    message = "Erro ao sincronizar especialidades"
+                val errorState = createErrorState(
+                    especialidadesResult.exceptionOrNull()?.message ?: "Erro ao sincronizar especialidades"
                 )
                 _syncState.value = errorState
                 emit(errorState)
                 return@flow
             }
 
-            // Etapa 2: Sincronizar Pacientes
-            _syncState.value = _syncState.value.copy(
-                message = "Sincronizando pacientes...",
-                processedItems = 1
-            )
+            // Etapa 2: Upload Pacientes Pendentes
+            updateSyncState("Enviando pacientes pendentes...", currentStep++, totalSteps)
             emit(_syncState.value)
 
-            val pacientesResult = syncPacientes()
-            if (pacientesResult.isFailure) {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = pacientesResult.exceptionOrNull()?.message,
-                    message = "Erro ao sincronizar pacientes"
+            val uploadPacientesResult = uploadPendingPacientes()
+            if (uploadPacientesResult.isFailure) {
+                Log.w(TAG, "Falha no upload de pacientes: ${uploadPacientesResult.exceptionOrNull()?.message}")
+                // Continua mesmo com falha no upload
+            }
+
+            // Etapa 3: Download Pacientes Atualizados
+            updateSyncState("Baixando pacientes atualizados...", currentStep++, totalSteps)
+            emit(_syncState.value)
+
+            val downloadPacientesResult = downloadUpdatedPacientes()
+            if (downloadPacientesResult.isFailure) {
+                val errorState = createErrorState(
+                    downloadPacientesResult.exceptionOrNull()?.message ?: "Erro ao baixar pacientes"
                 )
                 _syncState.value = errorState
                 emit(errorState)
                 return@flow
             }
+
+            // Etapa 4: Upload Relacionamentos Pendentes
+            updateSyncState("Enviando relacionamentos pendentes...", currentStep++, totalSteps)
+            emit(_syncState.value)
+
+            val uploadRelacionamentosResult = uploadPendingPacienteEspecialidades()
+            if (uploadRelacionamentosResult.isFailure) {
+                Log.w(TAG, "Falha no upload de relacionamentos: ${uploadRelacionamentosResult.exceptionOrNull()?.message}")
+                // Continua mesmo com falha no upload
+            }
+
+            // Etapa 5: Download Relacionamentos Atualizados
+            updateSyncState("Baixando relacionamentos atualizados...", currentStep++, totalSteps)
+            emit(_syncState.value)
+
+            val downloadRelacionamentosResult = downloadUpdatedPacienteEspecialidades()
+            if (downloadRelacionamentosResult.isFailure) {
+                Log.w(TAG, "Falha no download de relacionamentos: ${downloadRelacionamentosResult.exceptionOrNull()?.message}")
+                // Continua mesmo com falha no download
+            }
+
+            // Etapa 6: Finalização
+            updateSyncState("Finalizando sincronização...", currentStep, totalSteps)
+            emit(_syncState.value)
 
             // Sucesso
             val successState = SyncState(
                 isLoading = false,
                 message = "Sincronização concluída com sucesso!",
                 lastSyncTime = System.currentTimeMillis(),
-                totalItems = 2,
-                processedItems = 2
+                totalItems = totalSteps,
+                processedItems = totalSteps
             )
             _syncState.value = successState
             emit(successState)
@@ -116,15 +148,511 @@ class SyncRepositoryImpl @Inject constructor(
 
         } catch (e: Exception) {
             Log.e(TAG, "Erro inesperado durante sincronização", e)
-            val errorState = SyncState(
-                isLoading = false,
-                error = e.message,
-                message = "Erro inesperado durante a sincronização"
-            )
+            val errorState = createErrorState(e.message ?: "Erro inesperado durante a sincronização")
             _syncState.value = errorState
             emit(errorState)
         }
     }
+
+    // ==================== SINCRONIZAÇÃO DE PACIENTES ====================
+
+    override suspend fun startSyncPacientes(): Flow<SyncState> = flow {
+        _syncState.value = SyncState(
+            isLoading = true,
+            message = "Sincronizando pacientes...",
+            error = null
+        )
+        emit(_syncState.value)
+
+        try {
+            if (!networkManager.checkConnection()) {
+                val errorState = createErrorState("Sem conexão com a internet")
+                _syncState.value = errorState
+                emit(errorState)
+                return@flow
+            }
+
+            // Upload primeiro
+            val uploadResult = uploadPendingPacientes()
+            if (uploadResult.isFailure) {
+                Log.w(TAG, "Falha no upload de pacientes: ${uploadResult.exceptionOrNull()?.message}")
+            }
+
+            // Download depois
+            val downloadResult = downloadUpdatedPacientes()
+            if (downloadResult.isSuccess) {
+                val successState = SyncState(
+                    isLoading = false,
+                    message = "Pacientes sincronizados com sucesso!",
+                    lastSyncTime = System.currentTimeMillis()
+                )
+                _syncState.value = successState
+                emit(successState)
+            } else {
+                val errorState = createErrorState(
+                    downloadResult.exceptionOrNull()?.message ?: "Erro ao sincronizar pacientes"
+                )
+                _syncState.value = errorState
+                emit(errorState)
+            }
+        } catch (e: Exception) {
+            val errorState = createErrorState(e.message ?: "Erro inesperado")
+            _syncState.value = errorState
+            emit(errorState)
+        }
+    }
+
+    // ==================== UPLOAD DE PACIENTES PENDENTES ====================
+
+    private suspend fun uploadPendingPacientes(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando upload de pacientes pendentes")
+
+            val pendingPacientes = pacienteDao.getItemsNeedingSync()
+            Log.d(TAG, "Encontrados ${pendingPacientes.size} pacientes para sincronizar")
+
+            if (pendingPacientes.isEmpty()) {
+                Log.d(TAG, "Nenhum paciente pendente para upload")
+                return Result.success(Unit)
+            }
+
+            // Separar por tipo de operação
+            val forUpload = pendingPacientes.filter {
+                it.syncStatus == SyncStatus.PENDING_UPLOAD && !it.isDeleted
+            }
+            val forUpdate = pendingPacientes.filter {
+                it.syncStatus == SyncStatus.PENDING_UPLOAD && it.serverId != null && !it.isDeleted
+            }
+            val forDelete = pendingPacientes.filter {
+                it.syncStatus == SyncStatus.PENDING_DELETE && it.serverId != null
+            }
+
+            Log.d(TAG, "Para criar: ${forUpload.size}, Para atualizar: ${forUpdate.size}, Para deletar: ${forDelete.size}")
+
+            // Processar criações
+            if (forUpload.isNotEmpty()) {
+                processarCriacaoPacientes(forUpload)
+            }
+
+            // Processar atualizações
+            if (forUpdate.isNotEmpty()) {
+                processarAtualizacaoPacientes(forUpdate)
+            }
+
+            // Processar deleções
+            if (forDelete.isNotEmpty()) {
+                processarDelecaoPacientes(forDelete)
+            }
+
+            Log.d(TAG, "Upload de pacientes concluído")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro no upload de pacientes", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun processarCriacaoPacientes(pacientes: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEntity>) {
+        pacientes.chunked(BATCH_SIZE).forEach { batch ->
+            try {
+                val pacientesDto = batch.map { it.toPacienteDto() }
+                val response = apiService.createPacientesBatch(pacientesDto)
+
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val createdPacientes = response.body()?.data ?: emptyList()
+
+                    // Atualizar com server_id retornado
+                    createdPacientes.forEachIndexed { index, createdDto ->
+                        val originalEntity = batch[index]
+                        pacienteDao.updateSyncStatusAndServerId(
+                            originalEntity.localId,
+                            SyncStatus.SYNCED,
+                            createdDto.serverId ?: 0L
+                        )
+                    }
+
+                    Log.d(TAG, "Batch de ${batch.size} pacientes criado com sucesso")
+                } else {
+                    // Marcar como falha
+                    batch.forEach { entity ->
+                        pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                    }
+                    Log.e(TAG, "Falha na criação em batch: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                batch.forEach { entity ->
+                    pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
+                }
+                Log.e(TAG, "Erro na criação em batch", e)
+            }
+        }
+    }
+
+    private suspend fun processarAtualizacaoPacientes(pacientes: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEntity>) {
+        pacientes.forEach { entity ->
+            try {
+                val pacienteDto = entity.toPacienteDto()
+                val response = apiService.updatePaciente(entity.serverId!!, pacienteDto)
+
+                if (response.isSuccessful && response.body()?.success == true) {
+                    pacienteDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
+                    Log.d(TAG, "Paciente ${entity.localId} atualizado com sucesso")
+                } else {
+                    pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                    Log.e(TAG, "Falha na atualização do paciente ${entity.localId}: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
+                Log.e(TAG, "Erro na atualização do paciente ${entity.localId}", e)
+            }
+        }
+    }
+
+    private suspend fun processarDelecaoPacientes(pacientes: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEntity>) {
+        pacientes.forEach { entity ->
+            try {
+                val response = apiService.deletePaciente(entity.serverId!!)
+
+                if (response.isSuccessful) {
+                    // Remover permanentemente do banco local
+                    pacienteDao.deletePacientePermanently(entity.localId)
+                    Log.d(TAG, "Paciente ${entity.localId} deletado com sucesso")
+                } else {
+                    pacienteDao.updateSyncStatus(entity.localId, SyncStatus.DELETE_FAILED)
+                    Log.e(TAG, "Falha na deleção do paciente ${entity.localId}: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
+                Log.e(TAG, "Erro na deleção do paciente ${entity.localId}", e)
+            }
+        }
+    }
+
+    // ==================== DOWNLOAD DE PACIENTES ATUALIZADOS ====================
+
+    private suspend fun downloadUpdatedPacientes(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando download de pacientes atualizados")
+
+            val lastSync = getLastSyncTimestamp()
+            val response = apiService.getUpdatedPacientes(lastSync)
+
+            if (response.isSuccessful && response.body()?.success == true) {
+                val pacientesDto = response.body()?.data ?: emptyList()
+                Log.d(TAG, "Recebidos ${pacientesDto.size} pacientes do servidor")
+
+                if (pacientesDto.isNotEmpty()) {
+                    processarPacientesDoServidor(pacientesDto)
+                }
+
+                Log.d(TAG, "Download de pacientes concluído")
+                Result.success(Unit)
+            } else {
+                val error = response.body()?.error ?: "Erro HTTP: ${response.code()}"
+                Log.e(TAG, "Erro no download de pacientes: $error")
+                Result.failure(Exception(error))
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro no download de pacientes", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun processarPacientesDoServidor(pacientesDto: List<PacienteDto>) {
+        pacientesDto.forEach { dto ->
+            try {
+                // Verificar se já existe no banco local
+                val existingByServerId = pacienteDao.getPacienteByServerId(dto.serverId ?: 0L)
+                val existingByCpf = dto.cpf?.let { pacienteDao.getPacienteByCpf(it) }
+
+                when {
+                    existingByServerId != null -> {
+                        // Atualizar paciente existente se for mais recente
+                        if (dto.updatedAt.toDateLong()!! > existingByServerId.updatedAt) {
+                            val updatedEntity = dto.toPacienteEntity().copy(
+                                localId = existingByServerId.localId,
+                                syncStatus = SyncStatus.SYNCED,
+                                lastSyncTimestamp = System.currentTimeMillis()
+                            )
+                            pacienteDao.updatePaciente(updatedEntity)
+                            Log.d(TAG, "Paciente atualizado: ${dto.nome}")
+                        }
+                    }
+                    existingByCpf != null && existingByCpf.serverId == null -> {
+                        // Paciente local que agora existe no servidor - atualizar com serverId
+                        val updatedEntity = existingByCpf.copy(
+                            serverId = dto.serverId,
+                            syncStatus = SyncStatus.SYNCED,
+                            updatedAt = dto.updatedAt.toDateLong(),
+                            lastSyncTimestamp = System.currentTimeMillis()
+                        )
+                        pacienteDao.updatePaciente(updatedEntity)
+                        Log.d(TAG, "Paciente local sincronizado: ${dto.nome}")
+                    }
+                    else -> {
+                        // Novo paciente do servidor
+                        val newEntity = dto.toPacienteEntity().copy(
+                            syncStatus = SyncStatus.SYNCED,
+                            lastSyncTimestamp = System.currentTimeMillis()
+                        )
+                        pacienteDao.insertPaciente(newEntity)
+                        Log.d(TAG, "Novo paciente inserido: ${dto.nome}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao processar paciente ${dto.nome}", e)
+            }
+        }
+    }
+
+    // ==================== UPLOAD DE RELACIONAMENTOS PENDENTES ====================
+
+    private suspend fun uploadPendingPacienteEspecialidades(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando upload de relacionamentos pendentes")
+
+            val pendingRelations = pacienteEspecialidadeDao.getItemsNeedingSync()
+            Log.d(TAG, "Encontrados ${pendingRelations.size} relacionamentos para sincronizar")
+
+            if (pendingRelations.isEmpty()) {
+                Log.d(TAG, "Nenhum relacionamento pendente para upload")
+                return Result.success(Unit)
+            }
+
+            // Separar por tipo de operação
+            val forCreate = pendingRelations.filter {
+                it.syncStatus == SyncStatus.PENDING_UPLOAD && !it.isDeleted
+            }
+            val forDelete = pendingRelations.filter {
+                it.syncStatus == SyncStatus.PENDING_DELETE
+            }
+
+            Log.d(TAG, "Para criar: ${forCreate.size}, Para deletar: ${forDelete.size}")
+
+            // Processar criações
+            if (forCreate.isNotEmpty()) {
+                processarCriacaoRelacionamentos(forCreate)
+            }
+
+            // Processar deleções
+            if (forDelete.isNotEmpty()) {
+                processarDelecaoRelacionamentos(forDelete)
+            }
+
+            Log.d(TAG, "Upload de relacionamentos concluído")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro no upload de relacionamentos", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun processarCriacaoRelacionamentos(relations: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity>) {
+        relations.chunked(BATCH_SIZE).forEach { batch ->
+            try {
+                val relationsDto = batch.mapNotNull { entity ->
+                    // Buscar os serverIds correspondentes
+                    val paciente = pacienteDao.getPacienteById(entity.pacienteLocalId)
+                    val especialidade = especialidadeDao.getEspecialidadeById(entity.especialidadeLocalId)
+
+                    if (paciente?.serverId != null && especialidade?.serverId != null) {
+                        PacienteEspecialidadeDTO(
+                            pacienteId = paciente.serverId!!,
+                            especialidadeId = especialidade.serverId!!,
+                            dataAtendimento = entity.dataAtendimento,
+                            localId = entity.relationId
+                        )
+                    } else {
+                        Log.w(TAG, "Relacionamento ignorado - serverIds faltando: paciente=${paciente?.serverId}, especialidade=${especialidade?.serverId}")
+                        null
+                    }
+                }
+
+                if (relationsDto.isNotEmpty()) {
+                    val response = apiService.syncPacienteEspecialidades(relationsDto)
+
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        // Marcar como sincronizado
+                        batch.forEach { entity ->
+                            pacienteEspecialidadeDao.updateSyncStatus(
+                                entity.pacienteLocalId,
+                                entity.especialidadeLocalId,
+                                SyncStatus.SYNCED
+                            )
+                        }
+                        Log.d(TAG, "Batch de ${batch.size} relacionamentos criado com sucesso")
+                    } else {
+                        // Marcar como falha
+                        batch.forEach { entity ->
+                            pacienteEspecialidadeDao.updateSyncStatus(
+                                entity.pacienteLocalId,
+                                entity.especialidadeLocalId,
+                                SyncStatus.UPLOAD_FAILED
+                            )
+                        }
+                        Log.e(TAG, "Falha na criação em batch de relacionamentos: ${response.message()}")
+                    }
+                }
+            } catch (e: Exception) {
+                batch.forEach { entity ->
+                    pacienteEspecialidadeDao.incrementSyncAttempts(
+                        entity.pacienteLocalId,
+                        entity.especialidadeLocalId,
+                        System.currentTimeMillis(),
+                        e.message
+                    )
+                }
+                Log.e(TAG, "Erro na criação em batch de relacionamentos", e)
+            }
+        }
+    }
+
+    private suspend fun processarDelecaoRelacionamentos(relations: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity>) {
+        relations.forEach { entity ->
+            try {
+                if (entity.pacienteServerId != null && entity.especialidadeServerId != null) {
+                    val response = apiService.removeEspecialidadeFromPaciente(
+                        entity.pacienteServerId!!,
+                        entity.especialidadeServerId!!
+                    )
+
+                    if (response.isSuccessful) {
+                        // Remover permanentemente do banco local
+                        pacienteEspecialidadeDao.deletePermanently(
+                            entity.pacienteLocalId,
+                            entity.especialidadeLocalId
+                        )
+                        Log.d(TAG, "Relacionamento deletado com sucesso: ${entity.relationId}")
+                    } else {
+                        pacienteEspecialidadeDao.updateSyncStatus(
+                            entity.pacienteLocalId,
+                            entity.especialidadeLocalId,
+                            SyncStatus.DELETE_FAILED
+                        )
+                        Log.e(TAG, "Falha na deleção do relacionamento ${entity.relationId}: ${response.message()}")
+                    }
+                } else {
+                    Log.w(TAG, "Relacionamento ignorado na deleção - serverIds faltando: ${entity.relationId}")
+                }
+            } catch (e: Exception) {
+                pacienteEspecialidadeDao.incrementSyncAttempts(
+                    entity.pacienteLocalId,
+                    entity.especialidadeLocalId,
+                    System.currentTimeMillis(),
+                    e.message
+                )
+                Log.e(TAG, "Erro na deleção do relacionamento ${entity.relationId}", e)
+            }
+        }
+    }
+
+    // ==================== DOWNLOAD DE RELACIONAMENTOS ATUALIZADOS ====================
+
+    private suspend fun downloadUpdatedPacienteEspecialidades(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando download de relacionamentos atualizados")
+
+            val lastSync = getLastSyncTimestamp()
+            val response = apiService.getUpdatedPacienteEspecialidades(lastSync)
+
+            if (response.isSuccessful) {
+                val relationsDto = response.body() ?: emptyList()
+                Log.d(TAG, "Recebidos ${relationsDto.size} relacionamentos do servidor")
+
+                if (relationsDto.isNotEmpty()) {
+                    processarRelacionamentosDoServidor(relationsDto)
+                }
+
+                Log.d(TAG, "Download de relacionamentos concluído")
+                Result.success(Unit)
+            } else {
+                val error = "Erro HTTP: ${response.code()}"
+                Log.e(TAG, "Erro no download de relacionamentos: $error")
+                Result.failure(Exception(error))
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro no download de relacionamentos", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun processarRelacionamentosDoServidor(relationsDto: List<PacienteEspecialidadeDTO>) {
+        relationsDto.forEach { dto ->
+            try {
+                // Buscar os localIds correspondentes
+                val paciente = pacienteDao.getPacienteByServerId(dto.pacienteId)
+                val especialidade = especialidadeDao.getEspecialidadeByServerId(dto.especialidadeId)
+
+                if (paciente != null && especialidade != null) {
+                    if (dto.isDeleted) {
+                        // Remover relacionamento
+                        pacienteEspecialidadeDao.deletePermanently(
+                            paciente.localId,
+                            especialidade.localId
+                        )
+                        Log.d(TAG, "Relacionamento removido: ${paciente.localId}_${especialidade.localId}")
+                    } else {
+                        // Verificar se já existe
+                        val existing = pacienteEspecialidadeDao.getById(
+                            paciente.localId,
+                            especialidade.localId
+                        )
+
+                        if (existing == null) {
+                            // Criar novo relacionamento
+                            val newRelation = com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity.fromServerIds(
+                                pacienteServerId = dto.pacienteId,
+                                especialidadeServerId = dto.especialidadeId,
+                                pacienteLocalId = paciente.localId,
+                                especialidadeLocalId = especialidade.localId,
+                                dataAtendimento = dto.dataAtendimento
+                            )
+                            pacienteEspecialidadeDao.insert(newRelation)
+                            Log.d(TAG, "Novo relacionamento inserido: ${paciente.localId}_${especialidade.localId}")
+                        } else if (dto.lastModified > existing.updatedAt) {
+                            // Atualizar relacionamento existente
+                            val updatedRelation = existing.copy(
+                                dataAtendimento = dto.dataAtendimento,
+                                syncStatus = SyncStatus.SYNCED,
+                                updatedAt = dto.lastModified,
+                                lastSyncTimestamp = System.currentTimeMillis()
+                            )
+                            pacienteEspecialidadeDao.update(updatedRelation)
+                            Log.d(TAG, "Relacionamento atualizado: ${paciente.localId}_${especialidade.localId}")
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "Relacionamento ignorado - paciente ou especialidade não encontrados: pacienteId=${dto.pacienteId}, especialidadeId=${dto.especialidadeId}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao processar relacionamento do servidor", e)
+            }
+        }
+    }
+
+    // ==================== MÉTODOS AUXILIARES ====================
+
+    private fun createErrorState(message: String): SyncState {
+        return SyncState(
+            isLoading = false,
+            error = message,
+            message = "Erro na sincronização"
+        )
+    }
+
+    private fun updateSyncState(message: String, currentStep: Int, totalSteps: Int) {
+        _syncState.value = _syncState.value.copy(
+            message = message,
+            totalItems = totalSteps,
+            processedItems = currentStep
+        )
+    }
+
+    // ==================== MÉTODOS HERDADOS ====================
 
     override suspend fun startSyncEspecialidades(): Flow<SyncState> = flow {
         _syncState.value = SyncState(
@@ -149,44 +677,6 @@ class SyncRepositoryImpl @Inject constructor(
                     isLoading = false,
                     error = result.exceptionOrNull()?.message,
                     message = "Erro ao sincronizar especialidades"
-                )
-                _syncState.value = errorState
-                emit(errorState)
-            }
-        } catch (e: Exception) {
-            val errorState = SyncState(
-                isLoading = false,
-                error = e.message,
-                message = "Erro inesperado"
-            )
-            _syncState.value = errorState
-            emit(errorState)
-        }
-    }
-
-    override suspend fun startSyncPacientes(): Flow<SyncState> = flow {
-        _syncState.value = SyncState(
-            isLoading = true,
-            message = "Sincronizando pacientes...",
-            error = null
-        )
-        emit(_syncState.value)
-
-        try {
-            val result = syncPacientes()
-            if (result.isSuccess) {
-                val successState = SyncState(
-                    isLoading = false,
-                    message = "Pacientes sincronizados com sucesso!",
-                    lastSyncTime = System.currentTimeMillis()
-                )
-                _syncState.value = successState
-                emit(successState)
-            } else {
-                val errorState = SyncState(
-                    isLoading = false,
-                    error = result.exceptionOrNull()?.message,
-                    message = "Erro ao sincronizar pacientes"
                 )
                 _syncState.value = errorState
                 emit(errorState)
@@ -240,22 +730,9 @@ class SyncRepositoryImpl @Inject constructor(
                         val currentEspecialidades = especialidadeDao.getAllEspecialidadesList()
                         Log.d(TAG, "Especialidades atuais no banco: ${currentEspecialidades.size}")
 
-                        // DEBUG: Mostrar dados recebidos do servidor
-                        Log.d(TAG, "=== DADOS DO SERVIDOR ===")
-                        especialidadesDto.forEachIndexed { index, dto ->
-                            Log.d(TAG, "[$index] Nome: ${dto.nome}, ServerId: ${dto.serverId}, LocalId: '${dto.localId}'")
-                        }
-
-                        Log.d(TAG, "=== ENTIDADES CONVERTIDAS ===")
-                        especialidadesEntity.forEachIndexed { index, entity ->
-                            Log.d(TAG, "[$index] Nome: ${entity.nome}, ServerId: ${entity.serverId}, LocalId: '${entity.localId}'")
-                        }
-
                         // Processar cada especialidade
                         especialidadesEntity.forEach { entity ->
-                            // CORREÇÃO: Verificar se serverId não é null E se localId não está vazio
                             if (entity.serverId != null && entity.localId.isNotBlank()) {
-                                // Verifica se já existe uma especialidade com o mesmo serverId
                                 val existingByServerId = especialidadeDao.getEspecialidadeByServerId(entity.serverId)
 
                                 Log.d(TAG, "Processando: ${entity.nome}")
@@ -264,8 +741,6 @@ class SyncRepositoryImpl @Inject constructor(
                                 Log.d(TAG, "  - Existing by ServerId: $existingByServerId")
 
                                 if (existingByServerId == null) {
-                                    // ADICIONAL: Verificar se já existe uma especialidade com o mesmo nome
-                                    // Isso previne duplicação quando uma especialidade local vira sincronizada
                                     val existingByName = especialidadeDao.getEspecialidadeByName(entity.nome)
 
                                     if (existingByName != null && existingByName.serverId == null) {
@@ -340,24 +815,17 @@ class SyncRepositoryImpl @Inject constructor(
                 return Result.failure(Exception("Servidor não acessível"))
             }
 
-            val lastSync = getLastSyncTimestamp()
+            // Upload primeiro
+            val uploadResult = uploadPendingPacientes()
+            if (uploadResult.isFailure) {
+                Log.w(TAG, "Falha no upload de pacientes: ${uploadResult.exceptionOrNull()?.message}")
+            }
 
-            // Usar o método existente que funciona com Flow
-            syncPacientes(lastSync).collect { result ->
-                when (result) {
-                    is ApiResult.Success -> {
-                        Log.d(TAG, "SUCESSO! Recebidos ${result.data.size} pacientes")
-                        // Aqui você implementaria a lógica para salvar no banco local
-                        // pacienteRepository.syncFromServer(result.data)
-                    }
-                    is ApiResult.Error -> {
-                        Log.e(TAG, "Erro na API: ${result.exception}")
-                        throw Exception(result.exception)
-                    }
-                    is ApiResult.Loading -> {
-                        Log.d(TAG, "Carregando pacientes...")
-                    }
-                }
+            // Download depois
+            val downloadResult = downloadUpdatedPacientes()
+            if (downloadResult.isFailure) {
+                Log.e(TAG, "Falha no download de pacientes: ${downloadResult.exceptionOrNull()?.message}")
+                return downloadResult
             }
 
             Log.d(TAG, "syncPacientes concluído com sucesso")
@@ -423,6 +891,17 @@ class SyncRepositoryImpl @Inject constructor(
             val pacientesResult = syncPacientes()
             if (pacientesResult.isFailure) return pacientesResult
 
+            // Sincronizar relacionamentos
+            val uploadRelacionamentosResult = uploadPendingPacienteEspecialidades()
+            if (uploadRelacionamentosResult.isFailure) {
+                Log.w(TAG, "Falha no upload de relacionamentos: ${uploadRelacionamentosResult.exceptionOrNull()?.message}")
+            }
+
+            val downloadRelacionamentosResult = downloadUpdatedPacienteEspecialidades()
+            if (downloadRelacionamentosResult.isFailure) {
+                Log.w(TAG, "Falha no download de relacionamentos: ${downloadRelacionamentosResult.exceptionOrNull()?.message}")
+            }
+
             updateLastSyncTimestamp(System.currentTimeMillis())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -431,9 +910,11 @@ class SyncRepositoryImpl @Inject constructor(
     }
 
     override suspend fun hasPendingChanges(): Boolean {
-        // Verificar se há mudanças pendentes tanto em especialidades quanto em pacientes
-        return especialidadeRepository.hasPendingChanges()
-        // || pacienteRepository.hasPendingChanges() // implementar quando necessário
+        val pacientesPending = pacienteDao.getUnsyncedCount() > 0
+        val especialidadesPending = especialidadeRepository.hasPendingChanges()
+        val relacionamentosPending = pacienteEspecialidadeDao.countPendingUploads() > 0
+
+        return pacientesPending || especialidadesPending || relacionamentosPending
     }
 
     override suspend fun getLastSyncTimestamp(): Long {

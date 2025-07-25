@@ -74,7 +74,7 @@ class PacienteDetalheViewModel @Inject constructor(
                 val especialidades = mutableListOf<Especialidade>()
 
                 pacienteEspecialidadeEntities.forEach { associacao ->
-                    // CORREÇÃO: Usar as propriedades corretas da PacienteEspecialidadeEntity
+                    // Usar as propriedades corretas da PacienteEspecialidadeEntity
                     val especialidadeEntity = when {
                         // Se a associação tem especialidadeLocalId (String), use-o
                         associacao.localId.isNotEmpty() -> {

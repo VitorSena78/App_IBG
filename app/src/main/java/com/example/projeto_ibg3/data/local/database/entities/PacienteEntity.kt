@@ -32,19 +32,19 @@ data class PacienteEntity(
     val idade: Int? = null,
 
     @ColumnInfo(name = "nome_da_mae")
-    val nomeDaMae: String,
+    val nomeDaMae: String?,
 
     @ColumnInfo(name = "cpf")
     val cpf: String,
 
     @ColumnInfo(name = "sus")
-    val sus: String,
+    val sus: String?,
 
     @ColumnInfo(name = "telefone")
-    val telefone: String,
+    val telefone: String?,
 
     @ColumnInfo(name = "endereco")
-    val endereco: String,
+    val endereco: String?,
 
     // Dados médicos específicos do seu app
     @ColumnInfo(name = "pa_x_mmhg")

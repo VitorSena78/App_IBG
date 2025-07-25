@@ -25,7 +25,7 @@ interface PacienteDao {
     suspend fun getPacienteByCpf(cpf: String): PacienteEntity?
 
     @Query("SELECT * FROM pacientes WHERE sus = :sus AND is_deleted = 0")
-    suspend fun getPacienteBySus(sus: String): PacienteEntity?
+    suspend fun getPacienteBySus(sus: String?): PacienteEntity?
 
     // ========== BUSCA AVANÇADA ==========
 
@@ -185,7 +185,7 @@ interface PacienteDao {
     suspend fun countPacientesByCpfExcluding(cpf: String, excludeId: String?): Int
 
     @Query("SELECT COUNT(*) FROM pacientes WHERE sus = :sus AND is_deleted = 0 AND local_id != :excludeId")
-    suspend fun countPacientesBySusExcluding(sus: String, excludeId: String?): Int
+    suspend fun countPacientesBySusExcluding(sus: String?, excludeId: String?): Int
 
     // ========== LIMPEZA DE DADOS ==========
 

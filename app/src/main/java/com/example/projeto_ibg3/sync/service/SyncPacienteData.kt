@@ -7,7 +7,7 @@ data class SyncPacienteData(
     val dataNascimento: String?,
     val idade: Int?,
     val nomeDaMae: String?,
-    val cpf: String?,
+    val cpf: String,
     val sus: String?,
     val telefone: String?,
     val endereco: String?,

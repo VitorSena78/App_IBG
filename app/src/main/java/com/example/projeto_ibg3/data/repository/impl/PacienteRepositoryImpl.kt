@@ -22,11 +22,20 @@ import com.example.projeto_ibg3.data.mappers.toDto
 import com.example.projeto_ibg3.data.mappers.toEntity
 import com.example.projeto_ibg3.data.remote.conflict.ConflictResolution
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
+import com.example.projeto_ibg3.sync.model.SyncStatistics
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.Date
-
+import java.util.Locale
 
 
 @Singleton
@@ -132,7 +141,7 @@ class PacienteRepositoryImpl @Inject constructor(
             }
 
             // Verificar duplicatas por SUS
-            if (paciente.sus.isNotBlank()) {
+            if ((paciente.sus ?: "").isNotBlank()) {
                 val existingBySus = localDao.getPacienteBySus(paciente.sus)
                 if (existingBySus != null && !existingBySus.isDeleted) {
                     throw IllegalStateException("Já existe um paciente com este SUS")
@@ -176,7 +185,7 @@ class PacienteRepositoryImpl @Inject constructor(
                 }
 
                 // Verificar duplicatas por SUS (excluindo o próprio)
-                if (paciente.sus.isNotBlank()) {
+                if ((paciente.sus ?: "").isNotBlank()) {
                     val countBySus = localDao.countPacientesBySusExcluding(paciente.sus, paciente.localId)
                     if (countBySus > 0) {
                         throw IllegalStateException("Já existe outro paciente com este SUS")
@@ -225,6 +234,20 @@ class PacienteRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun restorePaciente(pacienteLocalId: String) {
+        withContext(Dispatchers.IO) {
+            val paciente = localDao.getPacienteById(pacienteLocalId)
+            if (paciente != null && paciente.isDeleted) {
+                val restoredPaciente = paciente.copy(
+                    isDeleted = false,
+                    syncStatus = SyncStatus.PENDING_UPLOAD,
+                    updatedAt = System.currentTimeMillis()
+                )
+                localDao.updatePaciente(restoredPaciente)
+            }
+        }
+    }
+
     override suspend fun syncPacientes(): Result<Unit> {
         TODO("Not yet implemented")
     }
@@ -235,6 +258,12 @@ class PacienteRepositoryImpl @Inject constructor(
 
     override suspend fun markAsSynced(localId: String, serverId: Long) {
         TODO("Not yet implemented")
+    }
+
+    override suspend fun hasPendingChanges(): Boolean {
+        return withContext(Dispatchers.IO) {
+            localDao.getUnsyncedCount() > 0
+        }
     }
 
     override suspend fun getPacienteCount(): Int {
@@ -643,13 +672,10 @@ class PacienteRepositoryImpl @Inject constructor(
         }
     }
 
-    suspend fun getPendingSyncCount(): Int {
-        return try {
-            localDao.getPendingSyncCount()
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao obter contagem de sincronização pendente", e)
-            0
-        }
+    override fun getPendingSyncCount(): Flow<Int> {
+        return flow {
+            emit(localDao.getPendingSyncCount())
+        }.flowOn(Dispatchers.IO)
     }
 
     suspend fun getFailedSyncCount(): Int {
@@ -662,7 +688,7 @@ class PacienteRepositoryImpl @Inject constructor(
     }
 
     suspend fun hasPendingSync(): Boolean {
-        return getPendingSyncCount() > 0
+        return getPendingSyncCount().first() > 0
     }
 
     suspend fun hasFailedSync(): Boolean {
@@ -679,7 +705,7 @@ class PacienteRepositoryImpl @Inject constructor(
         }
     }
 
-    suspend fun retryFailedSync(): Result<Unit> {
+    override suspend fun retryFailedSync(): Result<Unit> {
         return try {
             Log.d(TAG, "Tentando retry de sincronizações falhadas")
             val failedItems = localDao.getFailedSyncItems()
@@ -691,6 +717,64 @@ class PacienteRepositoryImpl @Inject constructor(
             Log.e(TAG, "Erro no retry de sincronizações falhadas", e)
             Result.failure(e)
         }
+    }
+
+    override suspend fun getFailedSyncPacientes(): List<Paciente> {
+        return withContext(Dispatchers.IO) {
+            localDao.getFailedSyncItems().map { it.toPaciente() }
+        }
+    }
+
+    override suspend fun resolveConflictKeepLocal(pacienteLocalId: String) {
+        withContext(Dispatchers.IO) {
+            // Marca como pendente para reenviar ao servidor
+            localDao.updateSyncStatus(pacienteLocalId, SyncStatus.PENDING_UPLOAD)
+        }
+    }
+
+    override suspend fun resolveConflictKeepServer(pacienteLocalId: String) {
+        withContext(Dispatchers.IO) {
+            // Busca dados do servidor e sobrescreve local
+            // Por enquanto apenas marca como sincronizado
+            // Em uma implementação completa, buscaria do servidor
+            localDao.updateSyncStatus(pacienteLocalId, SyncStatus.SYNCED)
+        }
+    }
+
+    override fun getConflictCount(): Flow<Int> {
+        return flow {
+            emit(localDao.getConflictCount())
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getPacientesByStatus(status: SyncStatus): Flow<List<Paciente>> {
+        return flow {
+            emit(localDao.getItemsByStatus(status).map { it.toPaciente() })
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override fun getSyncStatistics(): Flow<SyncStatistics> {
+        return flow {
+            val total = localDao.getTotalPacientes()
+            val synced = localDao.getItemsByStatus(SyncStatus.SYNCED).size
+            val pending = localDao.getPendingSyncCount()
+            val conflicts = localDao.getConflictCount()
+            val failed = localDao.getFailedSyncCount()
+
+            emit(
+                SyncStatistics(
+                    total = total,
+                    synced = synced,
+                    pending = pending,
+                    conflicts = conflicts,
+                    failed = failed,
+                    totalSynced = TODO(),
+                    uploaded = TODO(),
+                    downloaded = TODO(),
+                    duration = TODO()
+                )
+            )
+        }.flowOn(Dispatchers.IO)
     }
 
     // ========== RESOLUÇÃO DE CONFLITOS ==========
@@ -764,7 +848,7 @@ class PacienteRepositoryImpl @Inject constructor(
         return try {
             // Implementar parsing conforme formato usado no servidor
             // Exemplo para ISO format: SimpleDateFormat("yyyy-MM-dd").parse(dateString)
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).parse(dateString) ?: Date()
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: Date()
         } catch (e: Exception) {
             Date()
         }
@@ -773,7 +857,7 @@ class PacienteRepositoryImpl @Inject constructor(
     // Função para formatação de datas
     private fun formatDate(date: Date): String {
         return try {
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(date)
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
         } catch (e: Exception) {
             ""
         }
@@ -783,7 +867,7 @@ class PacienteRepositoryImpl @Inject constructor(
     private fun parseTimestamp(timestampString: String): Long {
         return try {
             // Se for ISO format
-            java.time.Instant.parse(timestampString).toEpochMilli()
+            Instant.parse(timestampString).toEpochMilli()
         } catch (e: Exception) {
             // Se for timestamp em string
             timestampString.toLongOrNull() ?: System.currentTimeMillis()
@@ -793,7 +877,7 @@ class PacienteRepositoryImpl @Inject constructor(
     // Função para formatação de timestamps
     private fun formatTimestamp(timestamp: Long): String {
         return try {
-            java.time.Instant.ofEpochMilli(timestamp).toString()
+            Instant.ofEpochMilli(timestamp).toString()
         } catch (e: Exception) {
             timestamp.toString()
         }

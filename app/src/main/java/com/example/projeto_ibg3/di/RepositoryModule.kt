@@ -1,10 +1,12 @@
 package com.example.projeto_ibg3.di
 
 import com.example.projeto_ibg3.data.repository.impl.EspecialidadeRepositoryImpl
+import com.example.projeto_ibg3.data.repository.impl.PacienteEspecialidadeRepositoryImpl
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
 import com.example.projeto_ibg3.data.repository.impl.PacienteRepositoryImpl
 import com.example.projeto_ibg3.data.repository.impl.SyncRepositoryImpl
 import com.example.projeto_ibg3.domain.repository.EspecialidadeRepository
+import com.example.projeto_ibg3.domain.repository.PacienteEspecialidadeRepository
 import com.example.projeto_ibg3.domain.repository.SyncRepository
 
 import dagger.Binds
@@ -26,6 +28,11 @@ abstract class RepositoryModule {
     abstract fun bindPacienteRepository(
         impl: PacienteRepositoryImpl
     ): PacienteRepository
+
+    @Binds
+    abstract fun bindPacienteEspecialidadeRepository(
+        impl: PacienteEspecialidadeRepositoryImpl
+    ): PacienteEspecialidadeRepository
 
     @Binds
     abstract fun bindSyncRepository(

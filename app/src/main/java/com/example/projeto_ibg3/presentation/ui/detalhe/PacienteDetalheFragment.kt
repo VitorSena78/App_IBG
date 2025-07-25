@@ -210,7 +210,7 @@ class PacienteDetalheFragment : Fragment() {
         tvBirthDate.text = dateFormat.format(paciente.dataNascimento)
 
         tvCpf.text = paciente.cpfFormatado
-        tvSus.text = if (paciente.sus.isNotEmpty()) paciente.sus else "Não informado"
+        tvSus.text = if ((paciente.sus ?: "").isNotEmpty()) paciente.sus else "Não informado"
         tvPhone.text = paciente.telefoneFormatado
         tvAddress.text = paciente.endereco
 

@@ -52,7 +52,7 @@ fun List<PacienteEspecialidadeEntity>.toModelList(): List<PacienteEspecialidade>
 }
 
 // Função para converter PacienteEspecialidade (model) para PacienteEspecialidadeEntity
-fun PacienteEspecialidade.toEntity(deviceId: String = ""): PacienteEspecialidadeEntity {
+fun PacienteEspecialidade.toEntity(deviceId: String = "default_device"): PacienteEspecialidadeEntity {
     return PacienteEspecialidadeEntity(
         pacienteLocalId = this.pacienteLocalId,
         especialidadeLocalId = this.especialidadeLocalId,

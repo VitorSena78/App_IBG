@@ -13,18 +13,18 @@ import com.example.projeto_ibg3.domain.model.SyncStatus
 
 // Valida se o PacienteEntity tem dados obrigatórios
 fun PacienteEntity.isValid(): Boolean {
-    return nome.isNotBlank() &&
-            nomeDaMae.isNotBlank() &&
-            cpf.isNotBlank() &&
-            sus.isNotBlank()
+    return (nome ?: "").isNotBlank() &&
+            (nomeDaMae ?: "").isNotBlank()  &&
+            (cpf ?: "").isNotBlank() &&
+            (sus ?: "").isNotBlank()
 }
 
 //Valida se o Paciente tem dados obrigatórios
 fun Paciente.isValid(): Boolean {
     return nome.isNotBlank() &&
-            nomeDaMae.isNotBlank() &&
+            (nomeDaMae ?: "").isNotBlank() &&
             cpf.isNotBlank() &&
-            sus.isNotBlank()
+            (sus ?: "").isNotBlank()
 }
 
 //Filtra apenas entidades válidas de uma lista

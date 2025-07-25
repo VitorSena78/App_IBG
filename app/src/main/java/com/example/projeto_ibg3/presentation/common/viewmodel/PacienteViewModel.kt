@@ -36,8 +36,8 @@ class PacienteViewModel @Inject constructor(
             pacientes.filter { paciente ->
                 paciente.nome.contains(query, ignoreCase = true) ||
                         paciente.cpf.contains(query) ||
-                        paciente.telefone.contains(query) ||
-                        paciente.nomeDaMae.contains(query, ignoreCase = true)
+                        (paciente.telefone ?: "").contains(query) ||
+                        (paciente.nomeDaMae ?: "").contains(query, ignoreCase = true)
             }
         }
     }.stateIn(
@@ -194,10 +194,10 @@ class PacienteViewModel @Inject constructor(
             paciente.cpf.isBlank() -> "CPF é obrigatório"
             !validateCpf(paciente.cpf) -> "CPF inválido"
             checkCpfExists(paciente.cpf, paciente.localId) -> "CPF já cadastrado"
-            paciente.telefone.isBlank() -> "Telefone é obrigatório"
-            paciente.nomeDaMae.isBlank() -> "Nome da mãe é obrigatório"
-            paciente.sus.isBlank() -> "Cartão SUS é obrigatório"
-            paciente.endereco.isBlank() -> "Endereço é obrigatório"
+            (paciente.telefone ?: "").isBlank() -> "Telefone é obrigatório"
+            (paciente.nomeDaMae ?: "").isBlank() -> "Nome da mãe é obrigatório"
+            (paciente.sus ?: "").isBlank() -> "Cartão SUS é obrigatório"
+            (paciente.endereco ?: "").isBlank() -> "Endereço é obrigatório"
             else -> null
         }
     }

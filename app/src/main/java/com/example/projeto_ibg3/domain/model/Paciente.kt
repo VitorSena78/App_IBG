@@ -10,11 +10,11 @@ data class Paciente(
     val nome: String,
     val dataNascimento: Date,  //mudar para Long futuramente
     val idade: Int? = null,
-    val nomeDaMae: String,
+    val nomeDaMae: String?,
     val cpf: String,
-    val sus: String,
-    val telefone: String,
-    val endereco: String,
+    val sus: String?,
+    val telefone: String?,
+    val endereco: String?,
     // Dados médicos
     val pressaoArterial: String? = null,           // Pressão arterial no formato "120/80 mmHg"
     val frequenciaCardiaca: Float? = null,         // Frequência cardíaca em bpm
@@ -28,8 +28,8 @@ data class Paciente(
     // Especialidades associadas
     val especialidades: List<Especialidade> = emptyList(),
     //Dados de controle
-    val createdAt: Date? = null,  //mudar para Long futuramente
-    val updatedAt: Date? = null,  //mudar para Long futuramente
+    val createdAt: Date,  //mudar para Long futuramente
+    val updatedAt: Date,  //mudar para Long futuramente
     // Campo de sincronização:
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
     val version: Int = 1
@@ -71,11 +71,15 @@ data class Paciente(
 
     // Formatação do telefone
     val telefoneFormatado: String
-        get() = when (telefone.length) {
-            11 -> "(${telefone.substring(0, 2)}) ${telefone.substring(2, 7)}-${telefone.substring(7)}"
-            10 -> "(${telefone.substring(0, 2)}) ${telefone.substring(2, 6)}-${telefone.substring(6)}"
-            else -> telefone
+        get() {
+            val tel = telefone ?: return ""
+            return when (tel.length) {
+                11 -> "(${tel.substring(0, 2)}) ${tel.substring(2, 7)}-${tel.substring(7)}"
+                10 -> "(${tel.substring(0, 2)}) ${tel.substring(2, 6)}-${tel.substring(6)}"
+                else -> tel
+            }
         }
+
 
     // Formatação da pressão arterial
     val pressaoArterialFormatada: String

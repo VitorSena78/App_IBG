@@ -5,6 +5,10 @@ data class SyncStatistics(
     val uploaded: Int,
     val downloaded: Int,
     val conflicts: Int,
-    val failed: Int,
-    val duration: Long
+    val failed: Int = 0,
+    val duration: Long,
+
+    val total: Int = 0,
+    val synced: Int = 0,
+    val pending: Int = 0
 )

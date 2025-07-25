@@ -22,6 +22,7 @@ import com.example.projeto_ibg3.core.constants.SyncConstants
 import com.example.projeto_ibg3.sync.worker.SyncWorker
 import com.example.projeto_ibg3.sync.model.SyncResult
 import com.example.projeto_ibg3.sync.extension.toSyncError
+import java.util.Calendar
 
 
 class SyncService(
@@ -146,7 +147,21 @@ class SyncService(
             sus = syncData.sus,
             telefone = syncData.telefone,
             endereco = syncData.endereco,
-            lastSyncTimestamp = syncData.lastSyncTimestamp
+            lastSyncTimestamp = syncData.lastSyncTimestamp,
+            paXMmhg = TODO(),
+            fcBpm = TODO(),
+            frIbpm = TODO(),
+            temperaturaC = TODO(),
+            hgtMgld = TODO(),
+            spo2 = TODO(),
+            peso = TODO(),
+            altura = TODO(),
+            imc = TODO(),
+            createdAt = TODO(),
+            updatedAt = TODO(),
+            deviceId = TODO(),
+            version = TODO(),
+            isDeleted = TODO()
         )
     }
 
@@ -349,7 +364,7 @@ class SyncService(
                     val month = parts[1].toInt() - 1 // Calendar usa 0-based
                     val day = parts[2].toInt()
 
-                    java.util.Calendar.getInstance().apply {
+                    Calendar.getInstance().apply {
                         set(year, month, day)
                     }.timeInMillis
                 } else {

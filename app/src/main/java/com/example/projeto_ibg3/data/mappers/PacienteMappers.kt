@@ -32,8 +32,8 @@ fun PacienteEntity.toPaciente(): Paciente {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = if (this.createdAt > 0) Date(this.createdAt) else null,
-        updatedAt = if (this.updatedAt > 0) Date(this.updatedAt) else null,
+        createdAt = Date(this.createdAt),
+        updatedAt = Date(this.updatedAt),
         syncStatus = this.syncStatus,
         version = this.version
     )
@@ -131,8 +131,8 @@ fun Paciente.toDto(): PacienteDto {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = this.createdAt?.let { formatDateToIso(it) },
-        updatedAt = this.updatedAt?.let { formatDateToIso(it) },
+        createdAt = formatDateToIso(this.createdAt),
+        updatedAt = formatDateToIso(this.updatedAt),
         deviceId = "",
         version = this.version,
         lastSyncTimestamp = 0,
