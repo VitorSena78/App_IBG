@@ -372,6 +372,12 @@ class SyncRepositoryImpl @Inject constructor(
 
     private suspend fun processarPacientesDoServidor(pacientesDto: List<PacienteDto>) {
         pacientesDto.forEach { dto ->
+            // LOG DE DEBUG - adicione esta linha
+            Log.d(TAG, "Processando paciente: ${dto.nome} - Idade DTO: ${dto.idade}")
+
+            // Verificar se já existe no banco local
+            val existingByServerId = pacienteDao.getPacienteByServerId(dto.serverId ?: 0L)
+
             try {
                 // Verificar se já existe no banco local
                 val existingByServerId = pacienteDao.getPacienteByServerId(dto.serverId ?: 0L)
@@ -386,8 +392,12 @@ class SyncRepositoryImpl @Inject constructor(
                                 syncStatus = SyncStatus.SYNCED,
                                 lastSyncTimestamp = System.currentTimeMillis()
                             )
+                            // LOG DE DEBUG - adicione esta linha
+                            Log.d(TAG, "Entity criada: ${updatedEntity.nome} - Idade Entity: ${updatedEntity.idade}")
+
                             pacienteDao.updatePaciente(updatedEntity)
                             Log.d(TAG, "Paciente atualizado: ${dto.nome}")
+
                         }
                     }
                     existingByCpf != null && existingByCpf.serverId == null -> {
@@ -407,8 +417,12 @@ class SyncRepositoryImpl @Inject constructor(
                             syncStatus = SyncStatus.SYNCED,
                             lastSyncTimestamp = System.currentTimeMillis()
                         )
+                        // LOG DE DEBUG - adicione esta linha
+                        Log.d(TAG, "Nova entity criada: ${newEntity.nome} - Idade Entity: ${newEntity.idade}")
+
                         pacienteDao.insertPaciente(newEntity)
                         Log.d(TAG, "Novo paciente inserido: ${dto.nome}")
+
                     }
                 }
             } catch (e: Exception) {

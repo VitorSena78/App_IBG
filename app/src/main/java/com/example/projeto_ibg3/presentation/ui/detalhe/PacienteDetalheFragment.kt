@@ -91,14 +91,14 @@ class PacienteDetalheFragment : Fragment() {
     }
 
     private fun setupViews(view: View) {
-        tvName = view.findViewById(R.id.tv_name)
-        tvInitials = view.findViewById(R.id.tv_initials)
-        tvAge = view.findViewById(R.id.tv_age)
+        tvName = view.findViewById(R.id.tv_nome)
+        tvInitials = view.findViewById(R.id.tv_iniciais)
+        tvAge = view.findViewById(R.id.tv_idade)
         tvMotherName = view.findViewById(R.id.tv_mother_name)
         tvBirthDate = view.findViewById(R.id.tv_birth_date)
         tvCpf = view.findViewById(R.id.tv_cpf)
         tvSus = view.findViewById(R.id.tv_sus)
-        tvPhone = view.findViewById(R.id.tv_phone)
+        tvPhone = view.findViewById(R.id.tv_telefone)
         tvAddress = view.findViewById(R.id.tv_address)
         tvPatientId = view.findViewById(R.id.tv_patient_id)
         tvCreatedAt = view.findViewById(R.id.tv_created_at)

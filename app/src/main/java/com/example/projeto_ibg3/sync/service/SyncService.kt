@@ -20,6 +20,7 @@ import com.example.projeto_ibg3.core.extensions.deleteAllEspecialidades
 import com.example.projeto_ibg3.data.mappers.toEntityList
 import com.example.projeto_ibg3.core.constants.SyncConstants
 import com.example.projeto_ibg3.data.mappers.dateFormat
+import com.example.projeto_ibg3.data.mappers.toDateTimeString
 import com.example.projeto_ibg3.sync.worker.SyncWorker
 import com.example.projeto_ibg3.sync.model.SyncResult
 import com.example.projeto_ibg3.sync.extension.toSyncError
@@ -150,8 +151,7 @@ class SyncService(
             telefone = syncData.telefone,
             endereco = syncData.endereco,
             lastSyncTimestamp = syncData.lastSyncTimestamp,
-            // Remover ou fornecer valores padrão para os campos que não existem em SyncPacienteData
-            paXMmhg = null, // ou valor padrão se necessário
+            paXMmhg = null,
             fcBpm = null,
             frIbpm = null,
             temperaturaC = null,
@@ -160,11 +160,9 @@ class SyncService(
             peso = null,
             altura = null,
             imc = null,
-            createdAt = dateFormat.format(Date(System.currentTimeMillis())),
-            updatedAt = dateFormat.format(Date(System.currentTimeMillis())),
-            deviceId = getDeviceId(),
-            version = 1,
-            isDeleted = false
+            createdAt = System.currentTimeMillis().toDateTimeString(),
+            updatedAt = System.currentTimeMillis().toDateTimeString(),
+            deviceId = getDeviceId()
         )
     }
 
@@ -489,8 +487,8 @@ class SyncService(
             pacienteLocalId = entity.pacienteLocalId,
             especialidadeLocalId = entity.especialidadeLocalId,
             dataAtendimento = safeFormatDate(entity.dataAtendimento),
-            createdAt = dateFormat.format(Date(entity.createdAt)),
-            updatedAt = dateFormat.format(Date(entity.updatedAt)),
+            createdAt = entity.createdAt.toDateTimeString(),
+            updatedAt = entity.updatedAt.toDateTimeString(),
             lastSyncTimestamp = entity.lastSyncTimestamp,
             action = if (entity.isDeleted) "DELETE" else null
         )
@@ -514,10 +512,9 @@ class SyncService(
             especialidadeServerId = especialidadeServerId,
             pacienteLocalId = pacienteLocalId,
             especialidadeLocalId = especialidadeLocalId,
-            // CORREÇÃO: Usar método helper seguro
             dataAtendimento = safeFormatDate(relation.dataAtendimento),
-            createdAt = dateFormat.format(Date(System.currentTimeMillis())),
-            updatedAt = dateFormat.format(Date(System.currentTimeMillis())),
+            createdAt = System.currentTimeMillis().toDateTimeString(),
+            updatedAt = System.currentTimeMillis().toDateTimeString(),
             lastSyncTimestamp = System.currentTimeMillis(),
             action = null
         )

@@ -1,5 +1,7 @@
 package com.example.projeto_ibg3.data.mappers
 
+//SincMapper.kt
+
 import android.util.Log
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity
@@ -14,10 +16,12 @@ import com.example.projeto_ibg3.domain.model.SyncStatus
 import java.text.SimpleDateFormat
 import java.util.*
 
-val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
-// Formato de data ISO para conversão
+val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) // Para data de nascimento e atendimento
+val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) // Para createdAt e updatedAt
+
 
 // ==================== EXTENSÕES PARA CONVERSÃO DE DATAS ====================
 
@@ -49,8 +53,8 @@ fun PacienteEspecialidadeEntity.toPacienteEspecialidadeDto(): PacienteEspecialid
         pacienteLocalId = this.pacienteLocalId,
         especialidadeLocalId = this.especialidadeLocalId,
         dataAtendimento = this.dataAtendimento?.toDateString(),
-        createdAt = this.createdAt.toIsoString(),
-        updatedAt = this.updatedAt.toIsoString(),
+        createdAt = this.createdAt.toDateTimeString(),
+        updatedAt = this.updatedAt.toDateTimeString(),
         lastSyncTimestamp = this.lastSyncTimestamp,
         action = when (this.syncStatus) {
             SyncStatus.PENDING_DELETE -> "DELETE"
@@ -104,8 +108,6 @@ fun List<PacienteEspecialidadeDTO>.toEntityList(
 /**
  * Converte PacienteEntity para PacienteDto
  */
-// Formato padrão usado
-val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
 // Converte Long (timestamp) para String no formato yyyy-MM-dd
 fun Long.toDateString(): String {
@@ -130,20 +132,32 @@ fun PacienteEntity.toPacienteDto(): PacienteDto {
         localId = this.localId,
         nome = this.nome,
         nomeDaMae = this.nomeDaMae,
-        dataNascimento = this.dataNascimento!!.toDateString(),
+        dataNascimento = this.dataNascimento.toDateString(),
+        idade = this.idade, // ← LINHA ADICIONADA - esta estava faltando!
         cpf = this.cpf,
         sus = this.sus,
         telefone = this.telefone,
         endereco = this.endereco,
-        updatedAt = this.updatedAt.toDateString(),
-        createdAt = this.createdAt.toDateString(),
-        isDeleted = this.isDeleted
+
+        // Dados médicos - também estavam faltando
+        paXMmhg = this.pressaoArterial,
+        fcBpm = this.frequenciaCardiaca,
+        frIbpm = this.frequenciaRespiratoria,
+        temperaturaC = this.temperatura,
+        hgtMgld = this.glicemia,
+        spo2 = this.saturacaoOxigenio,
+        peso = this.peso,
+        altura = this.altura,
+        imc = this.imc,
+
+        updatedAt = this.updatedAt.toDateTimeString(),
+        createdAt = this.createdAt.toDateTimeString(),
+        deviceId = this.deviceId,
+        lastSyncTimestamp = this.lastSyncTimestamp
     )
 }
 
-/**
- * Converte PacienteDto para PacienteEntity
- */
+//Converte PacienteDto para PacienteEntity
 fun PacienteDto.toPacienteEntity(
     deviceId: String = "default_device",
     syncStatus: SyncStatus = SyncStatus.SYNCED
@@ -163,16 +177,28 @@ fun PacienteDto.toPacienteEntity(
         nome = this.nome,
         nomeDaMae = this.nomeDaMae,
         dataNascimento = dataNascimentoTimestamp,
+        idade = this.idade,
         cpf = this.cpf,
         sus = this.sus,
         telefone = this.telefone,
         endereco = this.endereco,
+
+        // Dados médicos - também estavam faltando
+        pressaoArterial = this.paXMmhg,
+        frequenciaCardiaca = this.fcBpm,
+        frequenciaRespiratoria = this.frIbpm,
+        temperatura = this.temperaturaC,
+        glicemia = this.hgtMgld,
+        saturacaoOxigenio = this.spo2,
+        peso = this.peso,
+        altura = this.altura,
+        imc = this.imc,
+
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.createdAt.toLongSafe(),
-        updatedAt = this.updatedAt.toLongSafe(),
-        lastSyncTimestamp = System.currentTimeMillis(),
-        isDeleted = this.isDeleted
+        createdAt = this.createdAt.toDateTimeLongSafe(),
+        updatedAt = this.updatedAt.toDateTimeLongSafe(),
+        lastSyncTimestamp = System.currentTimeMillis()
     )
 }
 
@@ -252,13 +278,13 @@ fun PacienteEspecialidadeEntity.toDto(): PacienteEspecialidadeDTO? {
     // Só pode converter se tiver os serverIds
     return if (this.pacienteServerId != null && this.especialidadeServerId != null) {
         PacienteEspecialidadeDTO(
-            pacienteServerId = this.pacienteServerId!!,
-            especialidadeServerId = this.especialidadeServerId!!,
+            pacienteServerId = this.pacienteServerId,
+            especialidadeServerId = this.especialidadeServerId,
             pacienteLocalId = this.pacienteLocalId,
             especialidadeLocalId = this.especialidadeLocalId,
             dataAtendimento = this.dataAtendimento?.let { dateFormat.format(Date(it)) }, // Converter timestamp para string de data
-            createdAt = dateFormat.format(Date(this.createdAt)), // Converter timestamp para string
-            updatedAt = dateFormat.format(Date(this.updatedAt)), // Converter timestamp para string
+            createdAt = dateTimeFormat.format(Date(this.createdAt)),
+            updatedAt = dateTimeFormat.format(Date(this.updatedAt)),
             lastSyncTimestamp = this.lastSyncTimestamp,
             action = if (this.isDeleted) "DELETE" else null
         )
@@ -478,21 +504,52 @@ fun String?.toIsoDateLong(): Long {
 }
 
 // Função para converter string para Long de forma segura
-fun String?.toLongSafe(): Long {
+fun String?.toDateTimeLongSafe(): Long {
     return try {
         if (this.isNullOrBlank()) {
             System.currentTimeMillis()
         } else {
-            // Se for um número puro, converte direto
-            if (this.matches(Regex("\\d+"))) {
-                this.toLong()
-            } else {
-                // Se não for número, tenta como data ISO
-                this.toIsoDateLong()
+            // Primeiro tenta formato completo com data e hora
+            try {
+                dateTimeFormat.parse(this)?.time ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                // Se falhar, tenta formato ISO
+                try {
+                    isoDateFormat.parse(this)?.time ?: System.currentTimeMillis()
+                } catch (e2: Exception) {
+                    // Como último recurso, tenta apenas data
+                    try {
+                        dateFormat.parse(this)?.time ?: System.currentTimeMillis()
+                    } catch (e3: Exception) {
+                        Log.e("DateMapper", "Erro ao converter data/hora: $this", e3)
+                        System.currentTimeMillis()
+                    }
+                }
             }
         }
     } catch (e: Exception) {
-        Log.e("SincMapper", "Erro ao converter para Long: $this", e)
+        Log.e("DateMapper", "Erro geral ao converter para Long: $this", e)
+        System.currentTimeMillis()
+    }
+}
+
+// Manter a função original para compatibilidade
+fun String?.toLongSafe(): Long {
+    return this.toDateTimeLongSafe()
+}
+
+// Converte Long (timestamp) para String no formato yyyy-MM-dd HH:mm:ss
+fun Long.toDateTimeString(): String {
+    return dateTimeFormat.format(Date(this))
+}
+
+// Converte String no formato yyyy-MM-dd HH:mm:ss para Long (timestamp)
+fun String.toDateTimeLong(): Long {
+    return try {
+        val date = dateTimeFormat.parse(this)
+        date?.time ?: System.currentTimeMillis()
+    } catch (e: Exception) {
+        Log.e("DateMapper", "Erro ao converter data/hora: $this", e)
         System.currentTimeMillis()
     }
 }

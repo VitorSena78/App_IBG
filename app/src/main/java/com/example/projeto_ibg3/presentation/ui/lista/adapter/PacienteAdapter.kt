@@ -1,5 +1,6 @@
 package com.example.projeto_ibg3.presentation.ui.lista.adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -36,14 +37,25 @@ class PacienteAdapter(
         fun bind(paciente: Paciente) {
             binding.apply {
                 // Configurar informações básicas
-                tvInitials.text = paciente.iniciais
-                tvName.text = paciente.nome
-                tvAge.text = root.context.getString(R.string.idade_anos, paciente.idade)
-                tvPhone.text = paciente.telefoneFormatado
+                tvIniciais.text = paciente.iniciais
+                tvNome.text = paciente.nome
+
+                // Verificar se a idade não é null e formatar corretamente
+                Log.d("PacienteAdapter", "bind: ${paciente.toString()}")
+
+                if (paciente.idade != null) {
+                    tvIdade.text = "${paciente.idade} anos"
+                    tvIdade.visibility = View.VISIBLE
+                } else {
+                    tvIdade.text = "Idade não informada"
+                    tvIdade.visibility = View.VISIBLE
+                }
+
+                tvTelefone.text = paciente.telefoneFormatado
 
                 // Configurar chips
-                chipCpf.text = root.context.getString(R.string.cpf_label, paciente.cpfFormatado)
-                chipSus.visibility = if ((paciente.sus ?: "").isNotEmpty()) View.VISIBLE else View.GONE
+                chipCpf.text = "CPF: ${paciente.cpfFormatado}"
+                chipSus.visibility = if (!paciente.sus.isNullOrEmpty()) View.VISIBLE else View.GONE
 
                 // Configurar indicadores de sincronização
                 setupSyncIndicators(paciente)

@@ -70,12 +70,6 @@ data class PacienteDto(
     @SerializedName("device_id")
     val deviceId: String? = null,
 
-    @SerializedName("version")
-    val version: Int = 1,
-
     @SerializedName("last_sync_timestamp")
     val lastSyncTimestamp: Long? = null,
-
-    @SerializedName("is_deleted")
-    val isDeleted: Boolean = false
 )

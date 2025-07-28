@@ -105,7 +105,6 @@ fun PacienteDto.toPaciente(): Paciente {
         createdAt = parseIsoDate(this.createdAt),
         updatedAt = parseIsoDate(this.updatedAt),
         syncStatus = SyncStatus.SYNCED,
-        version = this.version
     )
 }
 
@@ -131,12 +130,10 @@ fun Paciente.toDto(): PacienteDto {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = formatDateToIso(this.createdAt),
-        updatedAt = formatDateToIso(this.updatedAt),
+        createdAt = this.createdAt?.let { formatTimestampToDateTime(it.time) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
+        updatedAt = this.updatedAt?.let { formatTimestampToDateTime(it.time) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
         deviceId = "",
-        version = this.version,
-        lastSyncTimestamp = 0,
-        isDeleted = false
+        lastSyncTimestamp = 0
     )
 }
 
@@ -162,12 +159,10 @@ fun PacienteEntity.toDto(): PacienteDto {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = formatTimestampToIso(this.createdAt),
-        updatedAt = formatTimestampToIso(this.updatedAt),
+        createdAt = formatTimestampToDateTime(this.createdAt),
+        updatedAt = formatTimestampToDateTime(this.updatedAt),
         deviceId = this.deviceId,
-        version = this.version,
-        lastSyncTimestamp = this.lastSyncTimestamp,
-        isDeleted = this.isDeleted
+        lastSyncTimestamp = this.lastSyncTimestamp
     )
 }
 
@@ -199,14 +194,40 @@ fun PacienteDto.toEntity(
         imc = this.imc,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = parseIsoToTimestamp(this.createdAt) ?: System.currentTimeMillis(),
-        updatedAt = parseIsoToTimestamp(this.updatedAt) ?: System.currentTimeMillis(),
+        createdAt = parseDateTimeToTimestamp(this.createdAt),
+        updatedAt = parseDateTimeToTimestamp(this.updatedAt),
         lastSyncTimestamp = this.lastSyncTimestamp ?: 0L,
-        version = this.version,
         syncAttempts = 0,
-        syncError = null,
-        isDeleted = this.isDeleted
+        syncError = null
     )
+}
+
+// Converte timestamp (Long) para formato de data e hora
+private fun formatTimestampToDateTime(timestamp: Long): String {
+    return try {
+        dateTimeFormat.format(Date(timestamp))
+    } catch (e: Exception) {
+        dateTimeFormat.format(Date())
+    }
+}
+
+// Converte string de data/hora para timestamp
+private fun parseDateTimeToTimestamp(dateTimeString: String?): Long {
+    return try {
+        if (dateTimeString.isNullOrBlank()) {
+            System.currentTimeMillis()
+        } else {
+            // Primeiro tenta formato completo com data e hora
+            try {
+                dateTimeFormat.parse(dateTimeString)?.time ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                // Se falhar, tenta formato ISO
+                parseIsoToTimestamp(dateTimeString)
+            }
+        }
+    } catch (e: Exception) {
+        System.currentTimeMillis()
+    }
 }
 
 // ========== CONVERSÕES DE ATUALIZAÇÃO ==========
@@ -232,9 +253,7 @@ fun PacienteEntity.updateFrom(dto: PacienteDto): PacienteEntity {
         altura = dto.altura ?: this.altura,
         imc = dto.imc ?: this.imc,
         updatedAt = parseIsoToTimestamp(dto.updatedAt) ?: System.currentTimeMillis(),
-        version = dto.version ?: this.version,
-        lastSyncTimestamp = dto.lastSyncTimestamp ?: this.lastSyncTimestamp,
-        isDeleted = dto.isDeleted ?: this.isDeleted
+        lastSyncTimestamp = dto.lastSyncTimestamp ?: this.lastSyncTimestamp
     )
 }
 
