@@ -33,7 +33,6 @@ class ConfigFragment : Fragment() {
         sharedPreferences = requireActivity().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
 
         setupObservers()
-        setupRefreshButton()
 
         return binding.root
     }
@@ -64,12 +63,6 @@ class ConfigFragment : Fragment() {
                     }
                 }
             }
-        }
-    }
-
-    private fun setupRefreshButton() {
-        binding.btnRefresh.setOnClickListener {
-            viewModel.refreshEspecialidades()
         }
     }
 
@@ -107,14 +100,6 @@ class ConfigFragment : Fragment() {
             setPadding(16, 16, 16, 16)
             textSize = 16f
         }
-    }
-
-    private fun getDefaultEspecialidades(): List<String> {
-        return listOf(
-            "Cardiologia", "Pediatria", "Clínico Geral", "Neurologia",
-            "Ginecologia", "Dermatologia", "Ortopedia", "Endocrinologia",
-            "Oftalmologia", "Psiquiatria"
-        )
     }
 
     override fun onDestroyView() {

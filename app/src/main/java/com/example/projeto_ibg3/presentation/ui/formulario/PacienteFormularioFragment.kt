@@ -31,6 +31,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class PacienteFormularioFragment : Fragment() {
@@ -47,6 +50,8 @@ class PacienteFormularioFragment : Fragment() {
     @Inject
     lateinit var especialidadeDao: EspecialidadeDao
 
+    private val viewModel: PacienteFormularioViewModel by viewModels()
+
     private var pacienteId: String = ""
     private var isEditMode = false
     private val calendar = Calendar.getInstance()
@@ -56,12 +61,6 @@ class PacienteFormularioFragment : Fragment() {
     // Componentes para especialidades
     private lateinit var chipGroupEspecialidades: ChipGroup
     private lateinit var sharedPreferences: SharedPreferences
-
-    // lista de especialidades disponíveis
-    private val especialidadesDisponiveis = listOf(
-        "Cardiologia", "Pediatria", "Clínico Geral", "Neurologia", "Ginecologia",
-        "Dermatologia", "Ortopedia", "Endocrinologia", "Oftalmologia", "Psiquiatria"
-    )
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -74,9 +73,6 @@ class PacienteFormularioFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Inicializar especialidades ANTES de configurar a UI
-        initializeEspecialidades()
 
         // Verificar se é edição ou criação
         pacienteId = arguments?.getString("pacienteLocalId", "") ?: ""
@@ -337,50 +333,65 @@ class PacienteFormularioFragment : Fragment() {
         return deviceId
     }
 
-    private fun initializeEspecialidades() {
-        lifecycleScope.launch {
-            try {
-                val count = especialidadeDao.getEspecialidadesCount()
+    private fun setupEspecialidades() {
+        Log.d("PacienteForm", "Setup inicial das especialidades")
 
-                if (count == 0) {
-                    Log.d("PacienteForm", "Inserindo especialidades iniciais...")
+        // Observar mudanças nas especialidades
+        observeEspecialidades()
 
-                    val deviceId = getDeviceId()  // Usar função dedicada
+        // Observar estado de carregamento
+        observeLoadingState()
 
-                    val especialidadesEntities = especialidadesDisponiveis.map { nome ->
-                        EspecialidadeEntity(
-                            nome = nome,
-                            serverId = null,
-                            deviceId = deviceId,
-                            syncStatus = SyncStatus.SYNCED,
-                            updatedAt = System.currentTimeMillis(),
-                            isDeleted = false
-                        )
-                    }
+        // Observar erros
+        observeErrors()
+    }
 
-                    especialidadeDao.insertEspecialidades(especialidadesEntities)
-                    Log.d("PacienteForm", "Especialidades inseridas com sucesso: ${especialidadesEntities.size}")
-                }
-
-            } catch (e: Exception) {
-                Log.e("PacienteForm", "Erro ao inicializar especialidades", e)
+    private fun observeEspecialidades() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.especialidades.collect { especialidades ->
+                Log.d("PacienteForm", "Especialidades recebidas: ${especialidades.size}")
+                updateEspecialidadesUI(especialidades)
             }
         }
     }
 
-    private fun setupEspecialidades() {
+    private fun observeLoadingState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isLoadingEspecialidades.collect { isLoading ->
+                Log.d("PacienteForm", "Estado de carregamento: $isLoading")
+                // indicador de carregamento
+            }
+        }
+    }
+
+    private fun observeErrors() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.errorMessage.collect { error ->
+                error?.let {
+                    Log.e("PacienteForm", "Erro: $it")
+                    Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                    viewModel.clearError()
+                }
+            }
+        }
+    }
+
+    private fun updateEspecialidadesUI(especialidades: List<EspecialidadeEntity>) {
         chipGroupEspecialidades.removeAllViews()
 
-        especialidadesDisponiveis.forEach { especialidade ->
-            val isEnabled = sharedPreferences.getBoolean(
-                "especialidade_${especialidade.lowercase().replace(" ", "_")}",
-                true
-            )
+        val filteredEspecialidades = viewModel.getFilteredEspecialidades(sharedPreferences)
 
-            if (isEnabled) {
-                val chip = createEspecialidadeChip(especialidade)
-                chipGroupEspecialidades.addView(chip)
-            }
+        Log.d("PacienteForm", "Criando chips para ${filteredEspecialidades.size} especialidades")
+
+        filteredEspecialidades.forEach { especialidade ->
+            val chip = createEspecialidadeChip(especialidade.nome)
+            chipGroupEspecialidades.addView(chip)
+            Log.d("PacienteForm", "Chip criado para: ${especialidade.nome}")
+        }
+
+        // Se estiver em modo de edição, recarregar as especialidades selecionadas
+        if (isEditMode && currentPaciente != null) {
+            loadPacienteEspecialidades()
         }
     }
 
@@ -414,14 +425,42 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     private fun showMaterialDatePicker() {
+        // Obter a data atual ou a data já preenchida no campo
+        val currentDateText = binding.etDataNascimento.text?.toString()?.trim()
+        val initialSelection = if (currentDateText.isNullOrEmpty()) {
+            // Para data inicial, usar hoje em UTC
+            System.currentTimeMillis()
+        } else {
+            try {
+                // Converter a data do campo para timestamp
+                val parsedDate = dateFormat.parse(currentDateText)
+                parsedDate?.time ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                System.currentTimeMillis()
+            }
+        }
+
         val datePicker = MaterialDatePicker.Builder.datePicker()
             .setTitleText("Selecione a data de nascimento")
-            .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
+            .setSelection(initialSelection)
             .build()
 
         datePicker.addOnPositiveButtonClickListener { selection ->
-            val selectedDate = Date(selection)
-            calendar.time = selectedDate
+            // Criar Calendar em UTC e converter para data local
+            val utcCalendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+            utcCalendar.timeInMillis = selection
+
+            // Obter ano, mês e dia da data selecionada em UTC
+            val year = utcCalendar.get(Calendar.YEAR)
+            val month = utcCalendar.get(Calendar.MONTH)
+            val day = utcCalendar.get(Calendar.DAY_OF_MONTH)
+
+            // Criar Calendar local com a mesma data
+            val localCalendar = Calendar.getInstance()
+            localCalendar.set(year, month, day, 0, 0, 0)
+            localCalendar.set(Calendar.MILLISECOND, 0)
+
+            val selectedDate = localCalendar.time
             binding.etDataNascimento.setText(dateFormat.format(selectedDate))
             calculateAge()
         }
@@ -440,9 +479,23 @@ class PacienteFormularioFragment : Fragment() {
                     val birth = Calendar.getInstance()
                     birth.time = birthDate
 
+                    // Garantir que ambos estão no mesmo fuso horário e hora
+                    birth.set(Calendar.HOUR_OF_DAY, 0)
+                    birth.set(Calendar.MINUTE, 0)
+                    birth.set(Calendar.SECOND, 0)
+                    birth.set(Calendar.MILLISECOND, 0)
+
+                    today.set(Calendar.HOUR_OF_DAY, 0)
+                    today.set(Calendar.MINUTE, 0)
+                    today.set(Calendar.SECOND, 0)
+                    today.set(Calendar.MILLISECOND, 0)
+
                     var age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR)
 
-                    if (today.get(Calendar.DAY_OF_YEAR) < birth.get(Calendar.DAY_OF_YEAR)) {
+                    // Verificar se o aniversário já passou este ano
+                    if (today.get(Calendar.MONTH) < birth.get(Calendar.MONTH) ||
+                        (today.get(Calendar.MONTH) == birth.get(Calendar.MONTH) &&
+                                today.get(Calendar.DAY_OF_MONTH) < birth.get(Calendar.DAY_OF_MONTH))) {
                         age--
                     }
 
@@ -548,7 +601,11 @@ class PacienteFormularioFragment : Fragment() {
     // Corrigido: função agora recebe String para pacienteLocalId
     private suspend fun saveEspecialidadesRelationships(pacienteId: String, especialidadesSelecionadas: List<String>) {
         try {
+            Log.d("PacienteForm", "Salvando relacionamentos para paciente: $pacienteId")
+            Log.d("PacienteForm", "Especialidades selecionadas: $especialidadesSelecionadas")
+
             especialidadesSelecionadas.forEach { nomeEspecialidade ->
+                // Buscar especialidade pelo nome no banco
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                 if (especialidade != null) {
@@ -562,6 +619,27 @@ class PacienteFormularioFragment : Fragment() {
                     Log.d("PacienteForm", "Relacionamento salvo: Paciente $pacienteId - Especialidade ${especialidade.localId}")
                 } else {
                     Log.w("PacienteForm", "Especialidade não encontrada: $nomeEspecialidade")
+
+                    // Tentar recarregar especialidades se alguma não foi encontrada
+                    Log.d("PacienteForm", "Tentando recarregar especialidades...")
+                    viewModel.refreshEspecialidades()
+
+                    // Fazer uma segunda tentativa após o refresh
+                    kotlinx.coroutines.delay(1000) // Aguardar um pouco para o refresh
+                    val especialidadeRetry = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
+
+                    if (especialidadeRetry != null) {
+                        val pacienteEspecialidade = PacienteEspecialidadeEntity(
+                            pacienteLocalId = pacienteId,
+                            especialidadeLocalId = especialidadeRetry.localId,
+                            dataAtendimento = System.currentTimeMillis()
+                        )
+
+                        pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
+                        Log.d("PacienteForm", "Relacionamento salvo na segunda tentativa: Paciente $pacienteId - Especialidade ${especialidadeRetry.localId} (${especialidadeRetry.nome})")
+                    } else {
+                        Log.e("PacienteForm", "Especialidade ainda não encontrada após refresh: $nomeEspecialidade")
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -573,7 +651,18 @@ class PacienteFormularioFragment : Fragment() {
     private fun convertDateToTimestamp(dateString: String): Long {
         return try {
             val date = dateFormat.parse(dateString)
-            date?.time ?: 0L
+            if (date != null) {
+                // Garantir que estamos pegando o timestamp no fuso horário local
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                calendar.timeInMillis
+            } else {
+                0L
+            }
         } catch (e: Exception) {
             Log.e("PacienteForm", "Erro ao converter data: $dateString", e)
             0L
@@ -588,9 +677,23 @@ class PacienteFormularioFragment : Fragment() {
                 val birth = Calendar.getInstance()
                 birth.time = birthDate
 
+                // Garantir que ambos estão no mesmo fuso horário
+                birth.set(Calendar.HOUR_OF_DAY, 0)
+                birth.set(Calendar.MINUTE, 0)
+                birth.set(Calendar.SECOND, 0)
+                birth.set(Calendar.MILLISECOND, 0)
+
+                today.set(Calendar.HOUR_OF_DAY, 0)
+                today.set(Calendar.MINUTE, 0)
+                today.set(Calendar.SECOND, 0)
+                today.set(Calendar.MILLISECOND, 0)
+
                 var age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR)
 
-                if (today.get(Calendar.DAY_OF_YEAR) < birth.get(Calendar.DAY_OF_YEAR)) {
+                // Verificar se o aniversário já passou este ano
+                if (today.get(Calendar.MONTH) < birth.get(Calendar.MONTH) ||
+                    (today.get(Calendar.MONTH) == birth.get(Calendar.MONTH) &&
+                            today.get(Calendar.DAY_OF_MONTH) < birth.get(Calendar.DAY_OF_MONTH))) {
                     age--
                 }
                 age
@@ -673,7 +776,8 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     fun refreshEspecialidades() {
-        setupEspecialidades()
+        Log.d("PacienteForm", "Solicitando refresh das especialidades")
+        viewModel.refreshEspecialidades()
     }
 
     override fun onDestroyView() {

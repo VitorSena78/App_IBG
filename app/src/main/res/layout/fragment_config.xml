@@ -21,14 +21,6 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btn_refresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Sincronizar"
-            android:textSize="12sp"
-            style="@style/Widget.Material3.Button.OutlinedButton" />
-
     </LinearLayout>
 
     <!-- Progress Bar -->
