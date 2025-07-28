@@ -1,11 +1,35 @@
 package com.example.projeto_ibg3.data.remote.dto
 
+import com.google.gson.annotations.SerializedName
+
 data class PacienteEspecialidadeDTO(
-    val pacienteId: Long,
-    val especialidadeId: Long,
-    val dataAtendimento: Long? = null,
-    val serverId: Long? = null, // ID no servidor (se já foi sincronizado)
-    val localId: String? = null, // ID local único para tracking
-    val lastModified: Long = System.currentTimeMillis(),
-    val isDeleted: Boolean = false
-)
+    @SerializedName("paciente_server_id")
+    val pacienteServerId: Long?,
+
+    @SerializedName("especialidade_server_id")
+    val especialidadeServerId: Long?,
+
+    @SerializedName("paciente_local_id")
+    val pacienteLocalId: String,
+
+    @SerializedName("especialidade_local_id")
+    val especialidadeLocalId: String,
+
+    @SerializedName("data_atendimento")
+    val dataAtendimento: String?,
+
+    @SerializedName("created_at")
+    val createdAt: String,
+
+    @SerializedName("updated_at")
+    val updatedAt: String,
+
+    @SerializedName("last_sync_timestamp")
+    val lastSyncTimestamp: Long?,
+
+    @SerializedName("action")
+    val action: String? = null
+) {
+    val isDeleted: Boolean
+        get() = action == "DELETE" || action == "DELETED"
+}

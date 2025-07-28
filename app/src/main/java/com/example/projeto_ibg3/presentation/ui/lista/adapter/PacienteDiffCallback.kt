@@ -1,4 +1,4 @@
-package com.example.projeto_ibg3.presentation.ui.Lista.adapter
+package com.example.projeto_ibg3.presentation.ui.lista.adapter
 
 import androidx.recyclerview.widget.DiffUtil
 import com.example.projeto_ibg3.domain.model.Paciente

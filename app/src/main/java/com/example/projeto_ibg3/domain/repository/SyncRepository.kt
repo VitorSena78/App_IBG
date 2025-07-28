@@ -24,4 +24,8 @@ interface SyncRepository {
 
     // Limpar erros
     fun clearError()
+
+    suspend fun syncPacienteEspecialidadesOnly(): Result<Unit>
+    suspend fun uploadPacienteEspecialidadesPending(): Result<Unit>
+    suspend fun downloadPacienteEspecialidadesUpdated(): Result<Unit>
 }

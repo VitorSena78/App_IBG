@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.projeto_ibg3"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.projeto_ibg3"
@@ -55,7 +55,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
-
+    // https://mvnrepository.com/artifact/com.squareup.leakcanary/leakcanary-android
+    implementation(libs.leakcanary.android)
 
     // Room
     implementation(libs.room.runtime)

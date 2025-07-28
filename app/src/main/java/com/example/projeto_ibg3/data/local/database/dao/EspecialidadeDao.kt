@@ -110,4 +110,8 @@ interface EspecialidadeDao {
 
     @Query("SELECT MAX(updated_at) FROM especialidades")
     suspend fun getLastUpdatedTimestamp(): Long?
+
+    @Query("SELECT * FROM especialidades WHERE server_id = :serverId AND is_deleted = 0 LIMIT 1")
+    suspend fun getEspecialidadeByServerId(serverId: Long): EspecialidadeEntity?
+
 }

@@ -1,4 +1,4 @@
-package com.example.projeto_ibg3.presentation.ui.Lista.adapter
+package com.example.projeto_ibg3.presentation.ui.lista.adapter
 
 import android.view.LayoutInflater
 import android.view.View
@@ -38,11 +38,11 @@ class PacienteAdapter(
                 // Configurar informações básicas
                 tvInitials.text = paciente.iniciais
                 tvName.text = paciente.nome
-                tvAge.text = "${paciente.idade} anos"
+                tvAge.text = root.context.getString(R.string.idade_anos, paciente.idade)
                 tvPhone.text = paciente.telefoneFormatado
 
                 // Configurar chips
-                chipCpf.text = "CPF: ${paciente.cpfFormatado}"
+                chipCpf.text = root.context.getString(R.string.cpf_label, paciente.cpfFormatado)
                 chipSus.visibility = if ((paciente.sus ?: "").isNotEmpty()) View.VISIBLE else View.GONE
 
                 // Configurar indicadores de sincronização
@@ -93,7 +93,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Pendente"
+                        chipSyncStatus.text = root.context.getString(R.string.pendente)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_pending)
                     }
 
@@ -111,7 +111,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Sincronizando"
+                        chipSyncStatus.text = root.context.getString(R.string.sincronizando)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_in_progress)
                     }
 
@@ -129,7 +129,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Deletar"
+                        chipSyncStatus.text = root.context.getString(R.string.deletar)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_error)
 
                         // Aplicar efeito visual de item marcado para deleção
@@ -150,7 +150,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Erro"
+                        chipSyncStatus.text = root.context.getString(R.string.erro)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_error)
                     }
 
@@ -168,7 +168,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Erro"
+                        chipSyncStatus.text = root.context.getString(R.string.erro)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_error)
                     }
 
@@ -186,7 +186,7 @@ class PacienteAdapter(
                         )
 
                         chipSyncStatus.visibility = View.VISIBLE
-                        chipSyncStatus.text = "Conflito"
+                        chipSyncStatus.text = root.context.getString(R.string.conflito)
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_conflict)
                     }
 

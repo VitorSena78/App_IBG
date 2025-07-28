@@ -1,5 +1,7 @@
 package com.example.projeto_ibg3.domain.model
 
+import android.util.Log
+import com.example.projeto_ibg3.data.mappers.calcularImc
 import java.util.Calendar
 import java.util.Date
 
@@ -34,23 +36,6 @@ data class Paciente(
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
     val version: Int = 1
 ) {
-
-
-    // Propriedade calculada para idade
-    val calcularIdade: Int
-        get() {
-            val calendar = Calendar.getInstance()
-            val currentYear = calendar.get(Calendar.YEAR)
-            calendar.time = dataNascimento
-            val birthYear = calendar.get(Calendar.YEAR)
-            return currentYear - birthYear
-        }
-
-    // Propriedade calculada para IMC
-    val calcularImc: Float?
-        get() = if (peso != null && altura != null && altura > 0) {
-            peso / (altura * altura)
-        } else null
 
     // Propriedade para obter iniciais do nome
     val iniciais: String

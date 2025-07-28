@@ -3,7 +3,7 @@ package com.example.projeto_ibg3.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 data class PacienteDto(
-    @SerializedName("server_id")
+    @SerializedName("server_id", ["id"])
     val serverId: Long? = null, // Pode ser null para novos pacientes
 
     @SerializedName("local_id")
@@ -30,7 +30,7 @@ data class PacienteDto(
     @SerializedName("telefone")
     val telefone: String? = null,
 
-    @SerializedName("endereco")
+    @SerializedName("endereço")
     val endereco: String? = null,
 
     @SerializedName("pa_x_mmhg")

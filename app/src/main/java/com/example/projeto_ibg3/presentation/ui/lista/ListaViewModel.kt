@@ -1,4 +1,4 @@
-package com.example.projeto_ibg3.presentation.ui.Lista
+package com.example.projeto_ibg3.presentation.ui.lista
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,7 +7,10 @@ import com.example.projeto_ibg3.domain.model.SyncState
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
 import com.example.projeto_ibg3.domain.repository.SyncRepository
+import com.example.projeto_ibg3.sync.model.SyncStats
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -39,7 +42,8 @@ class ListaViewModel @Inject constructor(
 
     // ==================== DADOS PRINCIPAIS ====================
 
-    // Lista de pacientes filtrada pela busca
+    // lista de pacientes filtrada pela busca
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     val pacientes: StateFlow<List<Paciente>> = _searchQuery
         .debounce(300) // Aguarda 300ms após a última digitação
         .distinctUntilChanged()
@@ -411,38 +415,6 @@ class ListaViewModel @Inject constructor(
                 )
             }
         }
-    }
-
-    // ==================== CLASSES DE DADOS ====================
-
-    //Estatísticas de sincronização
-    data class SyncStats(
-        val pendingSync: Int = 0,
-        val conflicts: Int = 0,
-        val isOnline: Boolean = true,
-        val lastSync: Long? = null
-    ) {
-        val hasIssues: Boolean
-            get() = conflicts > 0 || !isOnline
-
-        val needsSync: Boolean
-            get() = pendingSync > 0
-    }
-
-    //Estatísticas da lista
-    data class ListStats(
-        val totalPacientes: Int = 0,
-        val pacientesComConflito: Int = 0,
-        val pacientesPendentes: Int = 0,
-        val pacientesSincronizados: Int = 0
-    ) {
-        val syncPercentage: Float
-            get() = if (totalPacientes > 0) {
-                (pacientesSincronizados.toFloat() / totalPacientes) * 100
-            } else 0f
-
-        val hasIssues: Boolean
-            get() = pacientesComConflito > 0 || pacientesPendentes > 0
     }
 
     // ==================== CLEANUP ====================

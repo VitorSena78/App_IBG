@@ -27,6 +27,9 @@ interface PacienteDao {
     @Query("SELECT * FROM pacientes WHERE sus = :sus AND is_deleted = 0")
     suspend fun getPacienteBySus(sus: String?): PacienteEntity?
 
+    @Query("SELECT * FROM pacientes WHERE is_deleted = 0 ORDER BY nome ASC")
+    suspend fun getAllPacientesList(): List<PacienteEntity>
+
     // ========== BUSCA AVANÇADA ==========
 
     @Query("""

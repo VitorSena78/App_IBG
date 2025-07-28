@@ -1,5 +1,6 @@
 package com.example.projeto_ibg3.data.mappers
 
+import android.util.Log
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.domain.model.SyncStatus
@@ -176,26 +177,26 @@ val Paciente.calcularIdade: Int
 
         maxOf(0, idade) // Garante que não retorne idade negativa
     } catch (e: Exception) {
+        Log.e("PacienteMapperExtentions", "Erro ao calcular idade", e)
         0
     }
 
 //Calcula IMC baseado no peso e altura
-val Paciente.calcularImc: Double?
-    get() = try {
+val Paciente.calcularImc: Float?
+    get() {
         val pesoValue = this.peso
-        val alturaValue = this.altura
+        val alturaCm = this.altura
 
-        if (pesoValue != null && alturaValue != null && alturaValue > 0) {
-            val alturaMetros = alturaValue / 100.0 // Converte cm para metros
+        if (pesoValue == null || alturaCm == null || alturaCm <= 0) return null
+
+        return try {
+            val alturaMetros = alturaCm / 100.0
             val imc = pesoValue / (alturaMetros * alturaMetros)
-
-            // Arredonda para 2 casas decimais
-            Math.round(imc * 100.0) / 100.0
-        } else {
+            "%.2f".format(imc).toFloat() // Arredonda para 2 casas decimais
+        } catch (e: Exception) {
+            Log.e("PacienteMapperExtentions", "Erro ao calcular IMC", e)
             null
         }
-    } catch (e: Exception) {
-        null
     }
 
 // ========== EXTENSÕES PARA VALIDAÇÃO ==========

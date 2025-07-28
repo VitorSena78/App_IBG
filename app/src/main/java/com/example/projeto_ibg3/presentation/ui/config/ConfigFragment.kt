@@ -39,27 +39,29 @@ class ConfigFragment : Fragment() {
     }
 
     private fun setupObservers() {
-        lifecycleScope.launch {
-            // Observar especialidades
-            viewModel.especialidades.collect { especialidades ->
-                setupSwitches(especialidades)
+        viewLifecycleOwner.lifecycleScope.launch {
+            launch {
+                // Observar especialidades
+                viewModel.especialidades.collect { especialidades ->
+                    setupSwitches(especialidades)
+                }
             }
-        }
 
-        lifecycleScope.launch {
-            // Observar loading
-            viewModel.isLoading.collect { isLoading ->
-                binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-                binding.containerSwitches.visibility = if (isLoading) View.GONE else View.VISIBLE
+            launch {
+                // Observar loading
+                viewModel.isLoading.collect { isLoading ->
+                    binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+                    binding.containerSwitches.visibility = if (isLoading) View.GONE else View.VISIBLE
+                }
             }
-        }
 
-        lifecycleScope.launch {
-            // Observar erros
-            viewModel.error.collect { error ->
-                error?.let {
-                    Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
-                    viewModel.clearError()
+            launch {
+                // Observar erros
+                viewModel.error.collect { error ->
+                    error?.let {
+                        Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                        viewModel.clearError()
+                    }
                 }
             }
         }
@@ -116,6 +118,14 @@ class ConfigFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        // Limpar listeners antes de destruir
+        for (i in 0 until binding.containerSwitches.childCount) {
+            val switch = binding.containerSwitches.getChildAt(i) as? SwitchCompat
+            switch?.setOnCheckedChangeListener(null)
+        }
+
+        binding.containerSwitches.removeAllViews()
+
         super.onDestroyView()
         _binding = null
     }

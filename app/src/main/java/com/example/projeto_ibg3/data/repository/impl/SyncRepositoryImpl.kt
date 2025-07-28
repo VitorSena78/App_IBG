@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.dao.PacienteDao
 import com.example.projeto_ibg3.data.local.database.dao.PacienteEspecialidadeDao
+import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.data.mappers.*
 import com.example.projeto_ibg3.data.remote.api.ApiResult
 import com.example.projeto_ibg3.data.remote.api.ApiService
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -72,6 +74,7 @@ class SyncRepositoryImpl @Inject constructor(
             var currentStep = 0
 
             // Etapa 1: Sincronizar Especialidades
+            Log.d(TAG, "Iniciando sincronização de especialidades")
             updateSyncState("Sincronizando especialidades...", currentStep++, totalSteps)
             emit(_syncState.value)
 
@@ -86,6 +89,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
             // Etapa 2: Upload Pacientes Pendentes
+            Log.d(TAG, "Iniciando upload de pacientes pendentes")
             updateSyncState("Enviando pacientes pendentes...", currentStep++, totalSteps)
             emit(_syncState.value)
 
@@ -96,6 +100,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
             // Etapa 3: Download Pacientes Atualizados
+            Log.d(TAG, "Iniciando download de pacientes atualizados")
             updateSyncState("Baixando pacientes atualizados...", currentStep++, totalSteps)
             emit(_syncState.value)
 
@@ -110,6 +115,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
             // Etapa 4: Upload Relacionamentos Pendentes
+            Log.d(TAG, "Iniciando upload de relacionamentos pendentes")
             updateSyncState("Enviando relacionamentos pendentes...", currentStep++, totalSteps)
             emit(_syncState.value)
 
@@ -120,6 +126,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
             // Etapa 5: Download Relacionamentos Atualizados
+            Log.d(TAG, "Iniciando download de relacionamentos atualizados")
             updateSyncState("Baixando relacionamentos atualizados...", currentStep++, totalSteps)
             emit(_syncState.value)
 
@@ -130,6 +137,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
             // Etapa 6: Finalização
+            Log.d(TAG, "Finalizando sincronização...")
             updateSyncState("Finalizando sincronização...", currentStep, totalSteps)
             emit(_syncState.value)
 
@@ -337,10 +345,12 @@ class SyncRepositoryImpl @Inject constructor(
 
             val lastSync = getLastSyncTimestamp()
             val response = apiService.getUpdatedPacientes(lastSync)
+            Log.d(TAG, "response: ${response.body()}")
 
             if (response.isSuccessful && response.body()?.success == true) {
                 val pacientesDto = response.body()?.data ?: emptyList()
                 Log.d(TAG, "Recebidos ${pacientesDto.size} pacientes do servidor")
+                Log.d(TAG, "Pacientes: $pacientesDto")
 
                 if (pacientesDto.isNotEmpty()) {
                     processarPacientesDoServidor(pacientesDto)
@@ -460,10 +470,18 @@ class SyncRepositoryImpl @Inject constructor(
 
                     if (paciente?.serverId != null && especialidade?.serverId != null) {
                         PacienteEspecialidadeDTO(
-                            pacienteId = paciente.serverId!!,
-                            especialidadeId = especialidade.serverId!!,
-                            dataAtendimento = entity.dataAtendimento,
-                            localId = entity.relationId
+                            pacienteServerId = paciente.serverId!!,
+                            especialidadeServerId = especialidade.serverId!!,
+                            pacienteLocalId = entity.pacienteLocalId,
+                            especialidadeLocalId = entity.especialidadeLocalId,
+                            dataAtendimento = entity.dataAtendimento?.let { dateFormat.format(
+                                Date(
+                                    it
+                                )
+                            ) }, // Converter Long para String
+                            createdAt = dateFormat.format(Date(entity.createdAt)), // Converter Long para String
+                            updatedAt = dateFormat.format(Date(entity.updatedAt)), // Converter Long para String
+                            lastSyncTimestamp = entity.lastSyncTimestamp
                         )
                     } else {
                         Log.w(TAG, "Relacionamento ignorado - serverIds faltando: paciente=${paciente?.serverId}, especialidade=${especialidade?.serverId}")
@@ -563,13 +581,37 @@ class SyncRepositoryImpl @Inject constructor(
                 Log.d(TAG, "Recebidos ${relationsDto.size} relacionamentos do servidor")
 
                 if (relationsDto.isNotEmpty()) {
+                    // Log dos dados recebidos para debug
+                    relationsDto.forEachIndexed { index, dto ->
+                        Log.d(TAG, "Relacionamento $index: PacienteServerId=${dto.pacienteServerId}, EspecialidadeServerId=${dto.especialidadeServerId}, Data=${dto.dataAtendimento}")
+                    }
+
+                    // Verificar se temos pacientes e especialidades necessários
+                    val allPacientes = pacienteDao.getAllPacientesList()
+                    val allEspecialidades = especialidadeDao.getAllEspecialidadesList()
+
+                    Log.d(TAG, "Pacientes disponíveis no banco local: ${allPacientes.size}")
+                    allPacientes.forEach { p: PacienteEntity ->
+                        Log.d(TAG, "  Paciente: ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
+                    }
+
+                    Log.d(TAG, "Especialidades disponíveis no banco local: ${allEspecialidades.size}")
+                    allEspecialidades.forEach { e ->
+                        Log.d(TAG, "  Especialidade: ${e.nome} (localId: ${e.localId}, serverId: ${e.serverId})")
+                    }
+
+                    // Processar relacionamentos
                     processarRelacionamentosDoServidor(relationsDto)
+
+                    // Verificar quantos relacionamentos foram salvos
+                    val totalRelacionamentos = pacienteEspecialidadeDao.getTotalAssociations()
+                    Log.d(TAG, "Total de relacionamentos após sincronização: $totalRelacionamentos")
                 }
 
                 Log.d(TAG, "Download de relacionamentos concluído")
                 Result.success(Unit)
             } else {
-                val error = "Erro HTTP: ${response.code()}"
+                val error = "Erro HTTP: ${response.code()} - ${response.message()}"
                 Log.e(TAG, "Erro no download de relacionamentos: $error")
                 Result.failure(Exception(error))
             }
@@ -581,11 +623,24 @@ class SyncRepositoryImpl @Inject constructor(
     }
 
     private suspend fun processarRelacionamentosDoServidor(relationsDto: List<PacienteEspecialidadeDTO>) {
+        Log.d(TAG, "Processando ${relationsDto.size} relacionamentos do servidor")
+
         relationsDto.forEach { dto ->
             try {
-                // Buscar os localIds correspondentes
-                val paciente = pacienteDao.getPacienteByServerId(dto.pacienteId)
-                val especialidade = especialidadeDao.getEspecialidadeByServerId(dto.especialidadeId)
+                // Verificar se os IDs do servidor não são nulos
+                if (dto.pacienteServerId == null || dto.especialidadeServerId == null) {
+                    Log.w(TAG, "IDs nulos no DTO: pacienteId=${dto.pacienteServerId}, especialidadeId=${dto.especialidadeServerId}")
+                    return@forEach
+                }
+
+                Log.d(TAG, "Processando relacionamento: PacienteServerId=${dto.pacienteServerId}, EspecialidadeServerId=${dto.especialidadeServerId}")
+
+                // Buscar os registros locais pelos serverIds
+                val paciente = pacienteDao.getPacienteByServerId(dto.pacienteServerId!!)
+                val especialidade = especialidadeDao.getEspecialidadeByServerId(dto.especialidadeServerId!!)
+
+                Log.d(TAG, "Paciente encontrado: ${paciente?.let { "${it.nome} (localId: ${it.localId})" } ?: "null"}")
+                Log.d(TAG, "Especialidade encontrada: ${especialidade?.let { "${it.nome} (localId: ${it.localId})" } ?: "null"}")
 
                 if (paciente != null && especialidade != null) {
                     if (dto.isDeleted) {
@@ -596,42 +651,86 @@ class SyncRepositoryImpl @Inject constructor(
                         )
                         Log.d(TAG, "Relacionamento removido: ${paciente.localId}_${especialidade.localId}")
                     } else {
-                        // Verificar se já existe
+                        // Verificar se já existe o relacionamento
                         val existing = pacienteEspecialidadeDao.getById(
                             paciente.localId,
                             especialidade.localId
                         )
 
+                        Log.d(TAG, "Relacionamento existente: ${existing?.let { "existe" } ?: "não existe"}")
+
                         if (existing == null) {
                             // Criar novo relacionamento
-                            val newRelation = com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity.fromServerIds(
-                                pacienteServerId = dto.pacienteId,
-                                especialidadeServerId = dto.especialidadeId,
+                            val newRelation = dto.toEntity(
                                 pacienteLocalId = paciente.localId,
                                 especialidadeLocalId = especialidade.localId,
-                                dataAtendimento = dto.dataAtendimento
+                                deviceId = "server",
+                                syncStatus = SyncStatus.SYNCED
                             )
+
                             pacienteEspecialidadeDao.insert(newRelation)
-                            Log.d(TAG, "Novo relacionamento inserido: ${paciente.localId}_${especialidade.localId}")
-                        } else if (dto.lastModified > existing.updatedAt) {
-                            // Atualizar relacionamento existente
-                            val updatedRelation = existing.copy(
-                                dataAtendimento = dto.dataAtendimento,
-                                syncStatus = SyncStatus.SYNCED,
-                                updatedAt = dto.lastModified,
-                                lastSyncTimestamp = System.currentTimeMillis()
-                            )
-                            pacienteEspecialidadeDao.update(updatedRelation)
-                            Log.d(TAG, "Relacionamento atualizado: ${paciente.localId}_${especialidade.localId}")
+                            Log.d(TAG, "Novo relacionamento inserido: ${paciente.localId}_${especialidade.localId} - Data: ${dto.dataAtendimento}")
+                        } else {
+                            // Comparar timestamps para decidir se deve atualizar
+                            val dtoUpdatedAt = dto.updatedAt.toIsoDateLong()
+                            if (dtoUpdatedAt > existing.updatedAt) {
+                                // Atualizar relacionamento existente
+                                val updatedRelation = existing.copy(
+                                    dataAtendimento = dto.dataAtendimento?.toDateLong(),
+                                    pacienteServerId = dto.pacienteServerId,
+                                    especialidadeServerId = dto.especialidadeServerId,
+                                    syncStatus = SyncStatus.SYNCED,
+                                    updatedAt = dtoUpdatedAt,
+                                    lastSyncTimestamp = System.currentTimeMillis(),
+                                    isDeleted = false
+                                )
+                                pacienteEspecialidadeDao.update(updatedRelation)
+                                Log.d(TAG, "Relacionamento atualizado: ${paciente.localId}_${especialidade.localId}")
+                            } else {
+                                Log.d(TAG, "Relacionamento já está atualizado: ${paciente.localId}_${especialidade.localId}")
+                            }
                         }
                     }
                 } else {
-                    Log.w(TAG, "Relacionamento ignorado - paciente ou especialidade não encontrados: pacienteId=${dto.pacienteId}, especialidadeId=${dto.especialidadeId}")
+                    // Log mais detalhado para debug
+                    if (paciente == null) {
+                        // Verificar se existe paciente com esse serverId mas com problema na consulta
+                        val allPacientes = pacienteDao.getAllPacientesList()
+                        val pacienteComServerId = allPacientes.find { it.serverId == dto.pacienteServerId }
+                        if (pacienteComServerId != null) {
+                            Log.w(TAG, "Paciente encontrado em lista completa: ${pacienteComServerId.nome} (serverId: ${pacienteComServerId.serverId})")
+                        } else {
+                            Log.w(TAG, "Paciente não encontrado para serverId=${dto.pacienteServerId}")
+                            Log.d(TAG, "Pacientes disponíveis:")
+                            allPacientes.forEach { p: PacienteEntity ->
+                                Log.d(TAG, "  - ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
+                            }
+                        }
+                    }
+
+                    if (especialidade == null) {
+                        // Verificar se existe especialidade com esse serverId
+                        val allEspecialidades = especialidadeDao.getAllEspecialidadesList()
+                        val especialidadeComServerId = allEspecialidades.find { it.serverId == dto.especialidadeServerId }
+                        if (especialidadeComServerId != null) {
+                            Log.w(TAG, "Especialidade encontrada em lista completa: ${especialidadeComServerId.nome} (serverId: ${especialidadeComServerId.serverId})")
+                        } else {
+                            Log.w(TAG, "Especialidade não encontrada para serverId=${dto.especialidadeServerId}")
+                            Log.d(TAG, "Especialidades disponíveis:")
+                            allEspecialidades.forEach { e ->
+                                Log.d(TAG, "  - ${e.nome} (localId: ${e.localId}, serverId: ${e.serverId})")
+                            }
+                        }
+                    }
+
+                    Log.w(TAG, "Relacionamento ignorado - paciente ou especialidade não encontrados: pacienteId=${dto.pacienteServerId}, especialidadeId=${dto.especialidadeServerId}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Erro ao processar relacionamento do servidor", e)
+                Log.e(TAG, "Erro ao processar relacionamento do servidor - PacienteId: ${dto.pacienteServerId}, EspecialidadeId: ${dto.especialidadeServerId}", e)
             }
         }
+
+        Log.d(TAG, "Processamento de relacionamentos concluído")
     }
 
     // ==================== MÉTODOS AUXILIARES ====================
@@ -931,4 +1030,45 @@ class SyncRepositoryImpl @Inject constructor(
     override fun clearError() {
         _syncState.value = _syncState.value.copy(error = null)
     }
+
+    // ==================== MÉTODOS PÚBLICOS PARA RELACIONAMENTOS ====================
+
+    override suspend fun syncPacienteEspecialidadesOnly(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando sincronização apenas de relacionamentos")
+
+            if (!networkManager.checkConnection()) {
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+
+            // Upload primeiro
+            val uploadResult = uploadPendingPacienteEspecialidades()
+            if (uploadResult.isFailure) {
+                Log.w(TAG, "Falha no upload de relacionamentos: ${uploadResult.exceptionOrNull()?.message}")
+            }
+
+            // Download depois
+            val downloadResult = downloadUpdatedPacienteEspecialidades()
+            if (downloadResult.isFailure) {
+                Log.w(TAG, "Falha no download de relacionamentos: ${downloadResult.exceptionOrNull()?.message}")
+                return downloadResult
+            }
+
+            Log.d(TAG, "Sincronização de relacionamentos concluída")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro na sincronização de relacionamentos", e)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun uploadPacienteEspecialidadesPending(): Result<Unit> {
+        return uploadPendingPacienteEspecialidades()
+    }
+
+    override suspend fun downloadPacienteEspecialidadesUpdated(): Result<Unit> {
+        return downloadUpdatedPacienteEspecialidades()
+    }
+
 }

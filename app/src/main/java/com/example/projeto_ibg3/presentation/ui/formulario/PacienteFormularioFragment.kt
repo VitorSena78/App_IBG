@@ -57,7 +57,7 @@ class PacienteFormularioFragment : Fragment() {
     private lateinit var chipGroupEspecialidades: ChipGroup
     private lateinit var sharedPreferences: SharedPreferences
 
-    // Lista de especialidades disponíveis
+    // lista de especialidades disponíveis
     private val especialidadesDisponiveis = listOf(
         "Cardiologia", "Pediatria", "Clínico Geral", "Neurologia", "Ginecologia",
         "Dermatologia", "Ortopedia", "Endocrinologia", "Oftalmologia", "Psiquiatria"
@@ -129,7 +129,7 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     private fun loadPacienteData() {
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 Log.d("PacienteForm", "Carregando dados do paciente ID: $pacienteId")
 
@@ -677,6 +677,14 @@ class PacienteFormularioFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        // Cancelar qualquer operação de validação pendente
+
+        // Limpar listeners dos chips
+        for (i in 0 until chipGroupEspecialidades.childCount) {
+            val chip = chipGroupEspecialidades.getChildAt(i) as? Chip
+            chip?.setOnCheckedChangeListener(null)
+        }
+
         super.onDestroyView()
         _binding = null
     }

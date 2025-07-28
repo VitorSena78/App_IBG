@@ -6,6 +6,7 @@ import androidx.room.Relation
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity
+import com.example.projeto_ibg3.data.mappers.toDomainModel
 import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.data.mappers.toEspecialidade
 import com.example.projeto_ibg3.data.mappers.toPaciente
@@ -27,6 +28,6 @@ data class PacienteComEspecialidades(
 // Função para converter para o modelo de domínio
 fun PacienteComEspecialidades.toPaciente(): Paciente {
     return paciente.toPaciente().copy(
-        especialidades = especialidades.map { it.toEspecialidade() }
+        especialidades = especialidades.map { it.toDomainModel() }
     )
 }

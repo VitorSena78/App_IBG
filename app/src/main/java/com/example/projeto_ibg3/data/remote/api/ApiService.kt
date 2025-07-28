@@ -85,42 +85,44 @@ interface ApiService {
 
     // ========== RELACIONAMENTO PACIENTE-ESPECIALIDADE ==========
 
-    @GET("pacientes/{pacienteId}/especialidades")
+    @GET("pacientes_has_especialidades/" +
+            "" +
+            "/{pacienteId}/especialidades")
     suspend fun getPacienteEspecialidades(@Path("pacienteId") pacienteId: Long): Response<ApiResponse<List<PacienteEspecialidadeDTO>>>
 
-    @POST("pacientes/{pacienteId}/especialidades")
+    @POST("pacientes_has_especialidades/pacientes/{pacienteId}/especialidades")
     suspend fun addEspecialidadeToPaciente(
         @Path("pacienteId") pacienteId: Long,
         @Body especialidadeIds: List<Long>
     ): Response<ApiResponse<List<PacienteEspecialidadeDTO>>>
 
-    @DELETE("pacientes/{pacienteId}/especialidades/{especialidadeId}")
+    @DELETE("pacientes_has_especialidades/pacientes/{pacienteId}/especialidades/{especialidadeId}")
     suspend fun removeEspecialidadeFromPaciente(
         @Path("pacienteId") pacienteId: Long,
         @Path("especialidadeId") especialidadeId: Long
     ): Response<ApiResponse<Unit>>
 
-    @POST("pacientes/especialidades/sync")
+    @POST("pacientes_has_especialidades/pacientes/especialidades/sync")
     suspend fun syncPacienteEspecialidades(@Body relations: List<PacienteEspecialidadeDTO>): Response<ApiResponse<List<PacienteEspecialidadeDTO>>>
 
     // ------------------------------
     // RELACIONAMENTO PACIENTE/ESPECIALIDADE
     // ------------------------------
 
-    @POST("pacientes/{pacienteLocalId}/especialidades/{especialidadeLocalId}")
+    @POST("pacientes_has_especialidades/pacientes/{pacienteLocalId}/especialidades/{especialidadeLocalId}")
     suspend fun vincularEspecialidade(
         @Path("pacienteLocalId") pacienteId: Long,
         @Path("especialidadeLocalId") especialidadeId: Long,
         @Body dataAtendimento: Map<String, String>? = null
     ): Response<Unit>
 
-    @DELETE("pacientes/{pacienteLocalId}/especialidades/{especialidadeLocalId}")
+    @DELETE("pacientes_has_especialidades/pacientes/{pacienteLocalId}/especialidades/{especialidadeLocalId}")
     suspend fun desvincularEspecialidade(
         @Path("pacienteLocalId") pacienteId: Long,
         @Path("especialidadeLocalId") especialidadeId: Long
     ): Response<Unit>
 
     // Sincronização incremental
-    @GET("pacientes/especialidades/updated")
+    @GET("pacientes_has_especialidades/pacientes/especialidades/updated")
     suspend fun getUpdatedPacienteEspecialidades(@Query("since") timestamp: Long): Response<List<PacienteEspecialidadeDTO>>
 }

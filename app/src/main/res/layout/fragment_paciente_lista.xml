@@ -191,7 +191,7 @@
 
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Lista de pacientes -->
+    <!-- lista de pacientes -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_pacientes"
         android:layout_width="match_parent"

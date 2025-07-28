@@ -421,4 +421,14 @@ interface PacienteEspecialidadeDao {
     suspend fun deleteRelation(pacienteLocalId: String, especialidadeLocalId: String) {
         softDelete(pacienteLocalId, especialidadeLocalId)
     }
+
+    @Query("SELECT * FROM pacientes WHERE server_id = :serverId AND is_deleted = 0 LIMIT 1")
+    suspend fun getPacienteByServerId(serverId: Long): PacienteEntity?
+
+    @Query("SELECT * FROM pacientes WHERE is_deleted = 0 ORDER BY nome ASC")
+    suspend fun getAllPacientesList(): List<PacienteEntity>
+
+    // Se não existir, adicione também:
+    @Query("SELECT * FROM pacientes WHERE cpf = :cpf AND is_deleted = 0 LIMIT 1")
+    suspend fun getPacienteByCpf(cpf: String): PacienteEntity?
 }

@@ -17,14 +17,18 @@ data class SyncStats(
     val failedSyncAttempts: Int = 0,
     val avgSyncDuration: Long = 0, // em ms
     val lastSyncDuration: Long = 0, // em ms
-    val totalSyncsSinceInstall: Int = 0
+    val totalSyncsSinceInstall: Int = 0,
+    val pendingSync: Int = pendingUpload + pendingDelete,
+    val conflicts: Int  = conflictItems,
+    val isOnline: Boolean = true,
+    val lastSync: Long? = null
 ) {
     // Propriedades calculadas para compatibilidade
-    val pendingSync: Int get() = pendingUpload + pendingDelete
     val failedSync: Int get() = failedItems
-    val conflicts: Int get() = conflictItems
     val syncing: Int get() = syncingItems
     val lastSyncDate: Long? get() = lastSyncTimestamp
+    val hasIssues: Boolean get() = conflicts > 0 || !isOnline
+    val needsSync: Boolean get() = pendingSync > 0
 
     // Métodos úteis
     fun getSyncProgress(): Float {

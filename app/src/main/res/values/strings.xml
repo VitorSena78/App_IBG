@@ -18,4 +18,18 @@
     <string name="atualizar">Atualizar</string>
     <string name="novo_paciente">Novo Paciente</string>
     <string name="salvar">Salvar</string>
+
+    <!-- strings.xml -->
+    <string name="nenhum_paciente">Nenhum paciente</string>
+    <string name="um_paciente">1 paciente</string>
+    <string name="varios_pacientes">%d pacientes</string>
+    <string name="total_format">Total: %1$s</string>
+    <string name="idade_anos">%1$d anos</string>
+    <string name="cpf_label">CPF: %1$s</string>
+    <string name="pendente">Pendente</string>
+    <string name="sincronizando">Sincronizando</string>
+    <string name="deletar">Deletar</string>
+    <string name="erro">Erro</string>
+    <string name="conflito">Conflito</string>
+
 </resources>

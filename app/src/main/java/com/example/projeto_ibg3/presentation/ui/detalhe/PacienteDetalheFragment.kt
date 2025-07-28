@@ -80,11 +80,8 @@ class PacienteDetalheFragment : Fragment() {
         if (pacienteLocalId.isNotEmpty()) {
             println("PacienteDetalheFragment: Carregando paciente com ID = $pacienteLocalId")
 
-            // Carregar o paciente usando o ID String
+            // Carregar o paciente usando o ID String (agora com sincronização automática)
             viewModel.loadPaciente(pacienteLocalId)
-
-            // Carregar as especialidades usando o ID String
-            viewModel.loadPacienteEspecialidades(pacienteLocalId)
 
         } else {
             println("PacienteDetalheFragment: ID inválido!")
@@ -120,6 +117,11 @@ class PacienteDetalheFragment : Fragment() {
             }
             findNavController().navigate(R.id.action_pacienteDetail_to_editPaciente, bundle)
         }
+
+        // Adicionar listener para sincronização manual
+        ivSyncStatus.setOnClickListener {
+            viewModel.forceSyncEspecialidades(pacienteLocalId)
+        }
     }
 
     private fun observeViewModel() {
@@ -138,6 +140,24 @@ class PacienteDetalheFragment : Fragment() {
             displayEspecialidades(especialidades)
         }.launchIn(lifecycleScope)
 
+        // Observar estado de sincronização através dos novos states
+        viewModel.isSyncing.onEach { isSyncing ->
+            updateSyncAnimation(isSyncing)
+        }.launchIn(lifecycleScope)
+
+        // Observar status de sincronização
+        viewModel.syncStatusMessage.onEach { message ->
+            tvSyncStatus.text = message
+        }.launchIn(lifecycleScope)
+
+        viewModel.syncStatusIcon.onEach { iconRes ->
+            ivSyncStatus.setImageResource(iconRes)
+        }.launchIn(lifecycleScope)
+
+        viewModel.syncStatusColor.onEach { colorRes ->
+            viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), colorRes)
+        }.launchIn(lifecycleScope)
+
         viewModel.error.onEach { error ->
             error?.let {
                 println("PacienteDetalheFragment: Erro = $it")
@@ -147,46 +167,63 @@ class PacienteDetalheFragment : Fragment() {
         }.launchIn(lifecycleScope)
     }
 
-    private fun displaySyncStatus(paciente: Paciente) {
-        when (paciente.syncStatus) {
-            SyncStatus.SYNCED -> {
-                tvSyncStatus.text = "Sincronizado"
-                ivSyncStatus.setImageResource(R.drawable.ic_sync)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.success)
-            }
-            SyncStatus.PENDING_UPLOAD -> {
-                tvSyncStatus.text = "Pendente upload"
-                ivSyncStatus.setImageResource(R.drawable.ic_sync_disabled)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
-            }
-            SyncStatus.CONFLICT -> {
-                tvSyncStatus.text = "Conflito"
-                ivSyncStatus.setImageResource(R.drawable.ic_sync_problem)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
-            }
-            SyncStatus.PENDING_DELETE -> {
-                tvSyncStatus.text = "Pendente exclusão"
-                ivSyncStatus.setImageResource(R.drawable.ic_delete)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
-            }
-            SyncStatus.UPLOAD_FAILED -> {
-                tvSyncStatus.text = "Falha no upload"
-                ivSyncStatus.setImageResource(R.drawable.ic_error)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
-            }
-            SyncStatus.DELETE_FAILED -> {
-                tvSyncStatus.text = "Falha na exclusão"
-                ivSyncStatus.setImageResource(R.drawable.ic_error)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
-            }
-            SyncStatus.SYNCING -> {
-                tvSyncStatus.text = "Sincronizando..."
-                ivSyncStatus.setImageResource(R.drawable.ic_sync)
-                viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+    private fun updateSyncAnimation(isSyncing: Boolean) {
+        if (isSyncing) {
+            // Adicionar animação de rotação durante sincronização
+            val rotateAnimation = AnimationUtils.loadAnimation(requireContext(), android.R.anim.fade_in)
+            ivSyncStatus.startAnimation(rotateAnimation)
 
-                // Adicionar animação de rotação para o ícone
-                val rotateAnimation = AnimationUtils.loadAnimation(requireContext(), android.R.anim.fade_in)
-                ivSyncStatus.startAnimation(rotateAnimation)
+            // Desabilitar clique durante sincronização
+            ivSyncStatus.isClickable = false
+        } else {
+            // Parar animação e reabilitar clique
+            ivSyncStatus.clearAnimation()
+            ivSyncStatus.isClickable = true
+        }
+    }
+
+    private fun displaySyncStatus(paciente: Paciente) {
+        // Só usar o status do paciente se não estivermos sincronizando no momento
+        // Durante sincronização, o ViewModel controla o status
+        viewModel.isSyncing.value.let { isSyncing ->
+            if (!isSyncing) {
+                when (paciente.syncStatus) {
+                    SyncStatus.SYNCED -> {
+                        tvSyncStatus.text = "Sincronizado"
+                        ivSyncStatus.setImageResource(R.drawable.ic_sync)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.success)
+                    }
+                    SyncStatus.PENDING_UPLOAD -> {
+                        tvSyncStatus.text = "Pendente upload"
+                        ivSyncStatus.setImageResource(R.drawable.ic_sync_disabled)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
+                    }
+                    SyncStatus.CONFLICT -> {
+                        tvSyncStatus.text = "Conflito"
+                        ivSyncStatus.setImageResource(R.drawable.ic_sync_problem)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+                    }
+                    SyncStatus.PENDING_DELETE -> {
+                        tvSyncStatus.text = "Pendente exclusão"
+                        ivSyncStatus.setImageResource(R.drawable.ic_delete)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.warning)
+                    }
+                    SyncStatus.UPLOAD_FAILED -> {
+                        tvSyncStatus.text = "Falha no upload"
+                        ivSyncStatus.setImageResource(R.drawable.ic_error)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+                    }
+                    SyncStatus.DELETE_FAILED -> {
+                        tvSyncStatus.text = "Falha na exclusão"
+                        ivSyncStatus.setImageResource(R.drawable.ic_error)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.error)
+                    }
+                    SyncStatus.SYNCING -> {
+                        tvSyncStatus.text = "Sincronizando..."
+                        ivSyncStatus.setImageResource(R.drawable.ic_sync)
+                        viewSyncIndicator.backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+                    }
+                }
             }
         }
     }

@@ -22,7 +22,7 @@
 
     <fragment
         android:id="@+id/nav_lista"
-        android:name="com.example.projeto_ibg3.presentation.ui.Lista.ListaFragment"
+        android:name="com.example.projeto_ibg3.presentation.ui.lista.ListaFragment"
         android:label="@string/lista"
         tools:layout="@layout/fragment_paciente_lista">
 

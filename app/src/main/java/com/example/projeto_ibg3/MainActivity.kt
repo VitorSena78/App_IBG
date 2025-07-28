@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationView
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -13,16 +14,24 @@ import androidx.navigation.ui.setupWithNavController
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.example.projeto_ibg3.databinding.ActivityMainBinding
-import com.google.gson.JsonObject
+import com.example.projeto_ibg3.domain.repository.SyncRepository
+import com.example.projeto_ibg3.domain.model.SyncState
 import dagger.hilt.android.AndroidEntryPoint
-import retrofit2.Call
-import retrofit2.Response
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
+    @Inject
+    lateinit var syncRepository: SyncRepository
+
     private lateinit var appBarConfiguration: AppBarConfiguration
     private lateinit var binding: ActivityMainBinding
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +55,58 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
 
-        getEspecialidades()
+        // Iniciar sincronização silenciosa
+        startSilentSync()
+    }
+
+    private fun startSilentSync() {
+        lifecycleScope.launch {
+            try {
+                Log.d(TAG, "=== INICIANDO SINCRONIZAÇÃO AUTOMÁTICA ===")
+
+                // Observar o estado da sincronização apenas para logs
+                syncRepository.startSync().collect { syncState ->
+                    handleSyncState(syncState)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "=== ERRO INESPERADO NA SINCRONIZAÇÃO ===", e)
+                Log.e(TAG, "Erro: ${e.message}")
+                Log.e(TAG, "Causa: ${e.cause}")
+                Log.e(TAG, "=== FIM DO ERRO ===")
+            }
+        }
+    }
+
+    private fun handleSyncState(syncState: SyncState) {
+        when {
+            syncState.isLoading -> {
+                // Log de progresso
+                val progress = if (syncState.totalItems > 0) {
+                    " [${syncState.processedItems}/${syncState.totalItems}]"
+                } else {
+                    ""
+                }
+                Log.d(TAG, "SYNC: ${syncState.message}$progress")
+            }
+
+            syncState.error != null -> {
+                // Log de erro
+                Log.e(TAG, "=== SINCRONIZAÇÃO FALHOU ===")
+                Log.e(TAG, "Erro: ${syncState.error}")
+                Log.e(TAG, "Mensagem: ${syncState.message}")
+                Log.e(TAG, "=== FIM DO ERRO DE SINCRONIZAÇÃO ===")
+            }
+
+            !syncState.isLoading && syncState.error == null -> {
+                // Log de sucesso
+                Log.i(TAG, "=== SINCRONIZAÇÃO CONCLUÍDA COM SUCESSO ===")
+                Log.i(TAG, "Mensagem: ${syncState.message}")
+                Log.i(TAG, "Horário: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(syncState.lastSyncTime))}")
+                Log.i(TAG, "Items processados: ${syncState.processedItems}/${syncState.totalItems}")
+                Log.i(TAG, "=== FIM DA SINCRONIZAÇÃO BEM-SUCEDIDA ===")
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -77,7 +137,7 @@ class MainActivity : AppCompatActivity() {
                             navController.navigate(R.id.nav_config)
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("Navigation", "Erro ao navegar para configurações", e)
+                        Log.e("Navigation", "Erro ao navegar para configurações", e)
                     }
                 }
 
@@ -91,9 +151,5 @@ class MainActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
-    }
-
-     fun getEspecialidades(){
-
     }
 }

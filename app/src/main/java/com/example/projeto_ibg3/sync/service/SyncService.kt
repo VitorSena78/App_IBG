@@ -19,10 +19,12 @@ import com.example.projeto_ibg3.data.local.database.entities.SyncQueue
 import com.example.projeto_ibg3.core.extensions.deleteAllEspecialidades
 import com.example.projeto_ibg3.data.mappers.toEntityList
 import com.example.projeto_ibg3.core.constants.SyncConstants
+import com.example.projeto_ibg3.data.mappers.dateFormat
 import com.example.projeto_ibg3.sync.worker.SyncWorker
 import com.example.projeto_ibg3.sync.model.SyncResult
 import com.example.projeto_ibg3.sync.extension.toSyncError
 import java.util.Calendar
+import java.util.Date
 
 
 class SyncService(
@@ -148,20 +150,21 @@ class SyncService(
             telefone = syncData.telefone,
             endereco = syncData.endereco,
             lastSyncTimestamp = syncData.lastSyncTimestamp,
-            paXMmhg = TODO(),
-            fcBpm = TODO(),
-            frIbpm = TODO(),
-            temperaturaC = TODO(),
-            hgtMgld = TODO(),
-            spo2 = TODO(),
-            peso = TODO(),
-            altura = TODO(),
-            imc = TODO(),
-            createdAt = TODO(),
-            updatedAt = TODO(),
-            deviceId = TODO(),
-            version = TODO(),
-            isDeleted = TODO()
+            // Remover ou fornecer valores padrão para os campos que não existem em SyncPacienteData
+            paXMmhg = null, // ou valor padrão se necessário
+            fcBpm = null,
+            frIbpm = null,
+            temperaturaC = null,
+            hgtMgld = null,
+            spo2 = null,
+            peso = null,
+            altura = null,
+            imc = null,
+            createdAt = dateFormat.format(Date(System.currentTimeMillis())),
+            updatedAt = dateFormat.format(Date(System.currentTimeMillis())),
+            deviceId = getDeviceId(),
+            version = 1,
+            isDeleted = false
         )
     }
 
@@ -376,7 +379,7 @@ class SyncService(
         }
     }
 
-    // CORREÇÃO: Método separado para especialidades
+    // Método separado para especialidades
     private suspend fun updatePacienteEspecialidades(pacienteDto: PacienteDto) {
         val pacienteLocalId = pacienteDto.localId?: return
         val pacienteServerId = pacienteDto.serverId
@@ -387,7 +390,7 @@ class SyncService(
         }
     }
 
-    // MÉTODO PRINCIPAL: Sincronizar especialidades do servidor
+    // Sincronizar especialidades do servidor
     private suspend fun syncPacienteEspecialidadesFromServer(pacienteLocalId: String, pacienteServerId: Long) {
         try {
             val response = apiService.getPacienteEspecialidades(pacienteServerId)
@@ -404,8 +407,8 @@ class SyncService(
         }
     }
 
-    // MÉTODO: Atualizar especialidades locais com dados do servidor
-    // CORREÇÃO 1: Método updateLocalPacienteEspecialidades
+    // Atualizar especialidades locais com dados do servidor
+    // Método updateLocalPacienteEspecialidades
     private suspend fun updateLocalPacienteEspecialidades(
         pacienteLocalId: String,
         especialidadeRelations: List<PacienteEspecialidadeDTO>
@@ -417,9 +420,9 @@ class SyncService(
         val entities = especialidadeRelations.map { dto ->
             PacienteEspecialidadeEntity(
                 pacienteLocalId = pacienteLocalId,
-                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeId}",
+                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeServerId}",
                 pacienteServerId = null, // Será preenchido depois se necessário
-                especialidadeServerId = dto.especialidadeId,
+                especialidadeServerId = dto.especialidadeServerId,
                 syncStatus = SyncStatus.SYNCED,
                 deviceId = getDeviceId(),
                 dataAtendimento = System.currentTimeMillis(),
@@ -441,7 +444,7 @@ class SyncService(
     }
 
 
-    // MÉTODO: Sincronizar especialidades pendentes (CREATE/UPDATE/DELETE)
+    // Sincronizar especialidades pendentes (CREATE/UPDATE/DELETE)
     private suspend fun syncPacienteEspecialidadesPendentes() {
         try {
             // Usar o método correto do DAO que você já tem
@@ -474,42 +477,62 @@ class SyncService(
     private suspend fun convertEntityToPacienteEspecialidadeDTO(entity: PacienteEspecialidadeEntity): PacienteEspecialidadeDTO {
         // Buscar serverId do paciente
         val paciente = database.pacienteDao().getPacienteByLocalId(entity.pacienteLocalId)
-        val pacienteServerId = paciente?.serverId ?: 0L
+        val pacienteServerId = paciente?.serverId
 
         // Buscar serverId da especialidade
         val especialidade = database.especialidadeDao().getEspecialidadeByLocalId(entity.especialidadeLocalId)
-        val especialidadeServerId = especialidade?.serverId ?: 0L
+        val especialidadeServerId = especialidade?.serverId
 
         return PacienteEspecialidadeDTO(
-            pacienteId = pacienteServerId,
-            especialidadeId = especialidadeServerId,
-            localId = "${entity.pacienteLocalId}_${entity.especialidadeLocalId}",
-            lastModified = entity.updatedAt,
-            isDeleted = entity.isDeleted
+            pacienteServerId = pacienteServerId,
+            especialidadeServerId = especialidadeServerId,
+            pacienteLocalId = entity.pacienteLocalId,
+            especialidadeLocalId = entity.especialidadeLocalId,
+            dataAtendimento = safeFormatDate(entity.dataAtendimento),
+            createdAt = dateFormat.format(Date(entity.createdAt)),
+            updatedAt = dateFormat.format(Date(entity.updatedAt)),
+            lastSyncTimestamp = entity.lastSyncTimestamp,
+            action = if (entity.isDeleted) "DELETE" else null
         )
     }
 
     // MÉTODO: Converter entidade local para DTO
     private suspend fun convertToPacienteEspecialidadeDTO(relation: PacienteEspecialidade): PacienteEspecialidadeDTO {
-        // CORREÇÃO: Usar propriedades corretas
         val pacienteLocalId = relation.pacienteLocalId
         val especialidadeLocalId = relation.especialidadeLocalId
 
         // Buscar serverId do paciente
         val paciente = database.pacienteDao().getPacienteByLocalId(pacienteLocalId)
-        val pacienteServerId = paciente?.serverId ?: 0L
+        val pacienteServerId = paciente?.serverId
 
         // Buscar serverId da especialidade
         val especialidade = database.especialidadeDao().getEspecialidadeByLocalId(especialidadeLocalId)
-        val especialidadeServerId = especialidade?.serverId ?: 0L
+        val especialidadeServerId = especialidade?.serverId
 
         return PacienteEspecialidadeDTO(
-            pacienteId = pacienteServerId,
-            especialidadeId = especialidadeServerId,
-            localId = "${pacienteLocalId}_${especialidadeLocalId}",
-            lastModified = System.currentTimeMillis(),
-            isDeleted = false
+            pacienteServerId = pacienteServerId,
+            especialidadeServerId = especialidadeServerId,
+            pacienteLocalId = pacienteLocalId,
+            especialidadeLocalId = especialidadeLocalId,
+            // CORREÇÃO: Usar método helper seguro
+            dataAtendimento = safeFormatDate(relation.dataAtendimento),
+            createdAt = dateFormat.format(Date(System.currentTimeMillis())),
+            updatedAt = dateFormat.format(Date(System.currentTimeMillis())),
+            lastSyncTimestamp = System.currentTimeMillis(),
+            action = null
         )
+    }
+
+    private fun safeFormatDate(timestamp: Any?): String? {
+        return when (timestamp) {
+            is Long -> dateFormat.format(Date(timestamp))
+            is String -> timestamp // Já está formatado
+            null -> null
+            else -> {
+                println("Tipo inesperado para data: ${timestamp::class.java}")
+                null
+            }
+        }
     }
 
     // MÉTODO: Sincronizar todas as especialidades
@@ -636,9 +659,9 @@ class SyncService(
                         val entities = apiResponse.data.map { dto -> //  data é List<PacienteEspecialidadeDTO>
                             PacienteEspecialidadeEntity(
                                 pacienteLocalId = pacienteLocalId,
-                                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeId}", // ✅ CORRETO
+                                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeServerId}", // ✅ CORRETO
                                 pacienteServerId = serverId,
-                                especialidadeServerId = dto.especialidadeId, 
+                                especialidadeServerId = dto.especialidadeServerId,
                                 syncStatus = SyncStatus.SYNCED,
                                 deviceId = getDeviceId(),
                                 dataAtendimento = System.currentTimeMillis(),

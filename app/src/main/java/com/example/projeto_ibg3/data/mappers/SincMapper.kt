@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+import com.example.projeto_ibg3.data.mappers.toDomainModel
 import com.example.projeto_ibg3.data.remote.dto.PacienteDto
 import com.example.projeto_ibg3.data.remote.dto.PacienteEspecialidadeDTO
 import com.example.projeto_ibg3.domain.model.Paciente
@@ -14,6 +15,89 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 val isoDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+
+// Formato de data ISO para conversão
+private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+// ==================== EXTENSÕES PARA CONVERSÃO DE DATAS ====================
+
+fun String?.toDateLong(): Long? {
+    if (this.isNullOrBlank()) return null
+    return try {
+        // Primeiro tenta formato de data simples (yyyy-MM-dd)
+        if (this.length == 10) {
+            simpleDateFormat.parse(this)?.time
+        } else {
+            // Tenta formato ISO completo
+            isoDateFormat.parse(this)?.time
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+fun Long.toIsoString(): String {
+    return isoDateFormat.format(Date(this))
+}
+
+// ==================== MAPPERS ENTITY -> DTO ====================
+
+fun PacienteEspecialidadeEntity.toPacienteEspecialidadeDto(): PacienteEspecialidadeDTO {
+    return PacienteEspecialidadeDTO(
+        pacienteServerId = this.pacienteServerId,
+        especialidadeServerId = this.especialidadeServerId,
+        pacienteLocalId = this.pacienteLocalId,
+        especialidadeLocalId = this.especialidadeLocalId,
+        dataAtendimento = this.dataAtendimento?.toDateString(),
+        createdAt = this.createdAt.toIsoString(),
+        updatedAt = this.updatedAt.toIsoString(),
+        lastSyncTimestamp = this.lastSyncTimestamp,
+        action = when (this.syncStatus) {
+            SyncStatus.PENDING_DELETE -> "DELETE"
+            else -> "PENDING"
+        }
+    )
+}
+
+// ==================== MAPPERS DTO -> ENTITY ====================
+
+// Versão alternativa que cria com os IDs do DTO (caso você queira manter)
+fun PacienteEspecialidadeDTO.toPacienteEspecialidadeEntity(
+    deviceId: String = "",
+    syncStatus: SyncStatus = SyncStatus.SYNCED
+): PacienteEspecialidadeEntity {
+    return PacienteEspecialidadeEntity(
+        pacienteLocalId = this.pacienteLocalId,
+        especialidadeLocalId = this.especialidadeLocalId,
+        pacienteServerId = this.pacienteServerId,
+        especialidadeServerId = this.especialidadeServerId,
+        dataAtendimento = this.dataAtendimento.toDateLong(),
+        syncStatus = syncStatus,
+        deviceId = deviceId,
+        createdAt = this.createdAt.toIsoDateLong(),
+        updatedAt = this.updatedAt.toIsoDateLong(),
+        lastSyncTimestamp = this.lastSyncTimestamp ?: System.currentTimeMillis(),
+        isDeleted = this.isDeleted,
+        version = 1,
+        conflictData = null,
+        syncAttempts = 0,
+        lastSyncAttempt = 0,
+        syncError = null
+    )
+}
+
+// ==================== MAPPERS PARA LISTAS ====================
+
+fun List<PacienteEspecialidadeEntity>.toDtoList(): List<PacienteEspecialidadeDTO> {
+    return this.map { it.toPacienteEspecialidadeDto() }
+}
+
+fun List<PacienteEspecialidadeDTO>.toEntityList(
+    deviceId: String = "",
+    syncStatus: SyncStatus = SyncStatus.SYNCED
+): List<PacienteEspecialidadeEntity> {
+    return this.map { it.toPacienteEspecialidadeEntity(deviceId, syncStatus) }
+}
 
 // ==================== PACIENTE MAPPERS ====================
 
@@ -156,27 +240,27 @@ fun Especialidade.toEntity(
  * Converte lista de EspecialidadeEntity para lista de Especialidade
  */
 fun List<EspecialidadeEntity>.toEspecialidadeList(): List<Especialidade> {
-    return this.map { it.toEspecialidade() }
+    return this.map { it.toDomainModel() }
 }
 
 
 // ==================== PACIENTE ESPECIALIDADE MAPPERS ====================
 
 
-/**
- * Converte PacienteEspecialidadeEntity para PacienteEspecialidadeDTO
- */
+//Converte PacienteEspecialidadeEntity para PacienteEspecialidadeDTO
 fun PacienteEspecialidadeEntity.toDto(): PacienteEspecialidadeDTO? {
     // Só pode converter se tiver os serverIds
     return if (this.pacienteServerId != null && this.especialidadeServerId != null) {
         PacienteEspecialidadeDTO(
-            pacienteId = this.pacienteServerId!!,
-            especialidadeId = this.especialidadeServerId!!,
-            dataAtendimento = this.dataAtendimento,
-            serverId = null, // Relacionamentos não têm serverId próprio
-            localId = this.relationId,
-            lastModified = this.updatedAt,
-            isDeleted = this.isDeleted
+            pacienteServerId = this.pacienteServerId!!,
+            especialidadeServerId = this.especialidadeServerId!!,
+            pacienteLocalId = this.pacienteLocalId,
+            especialidadeLocalId = this.especialidadeLocalId,
+            dataAtendimento = this.dataAtendimento?.let { dateFormat.format(Date(it)) }, // Converter timestamp para string de data
+            createdAt = dateFormat.format(Date(this.createdAt)), // Converter timestamp para string
+            updatedAt = dateFormat.format(Date(this.updatedAt)), // Converter timestamp para string
+            lastSyncTimestamp = this.lastSyncTimestamp,
+            action = if (this.isDeleted) "DELETE" else null
         )
     } else {
         null
@@ -196,14 +280,14 @@ fun PacienteEspecialidadeDTO.toEntity(
     return PacienteEspecialidadeEntity(
         pacienteLocalId = pacienteLocalId,
         especialidadeLocalId = especialidadeLocalId,
-        dataAtendimento = this.dataAtendimento,
-        pacienteServerId = this.pacienteId,
-        especialidadeServerId = this.especialidadeId,
+        dataAtendimento = this.dataAtendimento?.toDateLong(), // Converter string de data para timestamp
+        pacienteServerId = this.pacienteServerId,
+        especialidadeServerId = this.especialidadeServerId,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.lastModified,
-        updatedAt = this.lastModified,
-        lastSyncTimestamp = System.currentTimeMillis(),
+        createdAt = this.createdAt.toIsoDateLong(), // Converter string ISO para timestamp
+        updatedAt = this.updatedAt.toIsoDateLong(), // Converter string ISO para timestamp
+        lastSyncTimestamp = this.lastSyncTimestamp ?: System.currentTimeMillis(),
         isDeleted = this.isDeleted
     )
 }

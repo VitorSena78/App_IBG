@@ -1,7 +1,6 @@
-package com.example.projeto_ibg3.presentation.ui.Lista
+package com.example.projeto_ibg3.presentation.ui.lista
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -18,12 +17,11 @@ import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.projeto_ibg3.R
-import com.example.projeto_ibg3.presentation.ui.Lista.adapter.PacienteAdapter
-import com.example.projeto_ibg3.presentation.ui.Lista.adapter.PacienteAdapterCallback
+import com.example.projeto_ibg3.presentation.ui.lista.adapter.PacienteAdapter
 import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.domain.model.SyncState
-import com.example.projeto_ibg3.domain.model.SyncStatus
-import com.example.projeto_ibg3.presentation.ui.Lista.adapter.ExtendedPacienteAdapterCallback
+import com.example.projeto_ibg3.presentation.ui.lista.adapter.ExtendedPacienteAdapterCallback
+import com.example.projeto_ibg3.sync.model.SyncStats
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.CircularProgressIndicator
@@ -31,6 +29,7 @@ import com.google.android.material.textfield.TextInputEditText
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import androidx.core.net.toUri
 
 @AndroidEntryPoint
 class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
@@ -195,7 +194,7 @@ class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
         }
     }
 
-    private fun updateSyncStats(stats: ListaViewModel.SyncStats) {
+    private fun updateSyncStats(stats: SyncStats) {
         when {
             stats.conflicts > 0 -> {
                 showSyncStatus(
@@ -231,7 +230,7 @@ class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
         }
     }
 
-    private fun updateListStats(stats: ListaViewModel.ListStats) {
+    private fun updateListStats(stats: ListStats) {
         // Atualizar indicadores visuais na lista se necessário
         // Por exemplo, mostrar badges nos itens com problemas de sincronização
     }
@@ -288,7 +287,7 @@ class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
             1 -> "1 paciente"
             else -> "$count pacientes"
         }
-        tvTotalPacientes.text = "Total: $text"
+        tvTotalPacientes.text = getString(R.string.total_format, text)
     }
 
     private fun showError(message: String) {
@@ -316,7 +315,7 @@ class ListaFragment : Fragment(), ExtendedPacienteAdapterCallback {
 
     override fun onCallPaciente(paciente: Paciente) {
         val intent = Intent(Intent.ACTION_DIAL).apply {
-            data = Uri.parse("tel:${paciente.telefone}")
+            data = "tel:${paciente.telefone}".toUri()
         }
 
         try {
