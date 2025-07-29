@@ -7,6 +7,7 @@ import retrofit2.Response
 import retrofit2.http.*
 import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
 import com.example.projeto_ibg3.data.remote.dto.PacienteEspecialidadeDTO
+import com.example.projeto_ibg3.domain.model.PacienteEspecialidade
 import com.google.gson.JsonObject
 import retrofit2.Call
 
@@ -125,4 +126,24 @@ interface ApiService {
     // Sincronização incremental
     @GET("pacientes_has_especialidades/pacientes/especialidades/updated")
     suspend fun getUpdatedPacienteEspecialidades(@Query("since") timestamp: Long): Response<ApiResponse<List<PacienteEspecialidadeDTO>>>
+
+    /**
+     * Criar relacionamento individual entre paciente e especialidade
+     */
+    @POST("/api/pacientes_has_especialidades")
+    suspend fun create(
+        @Query("pacienteId") pacienteId: Int,
+        @Query("especialidadeId") especialidadeId: Int,
+        @Query("dataAtendimento") dataAtendimento: java.time.LocalDate? = null
+    ): Response<PacienteEspecialidade>
+
+    /**
+     * Deletar relacionamento específico usando path variables
+     */
+    @DELETE("/api/pacientes_has_especialidades/pacientes/{pacienteId}/especialidades/{especialidadeId}")
+    suspend fun deleteByPathVariables(
+        @Path("pacienteId") pacienteId: Int,
+        @Path("especialidadeId") especialidadeId: Int
+    ): Response<Void>
+
 }

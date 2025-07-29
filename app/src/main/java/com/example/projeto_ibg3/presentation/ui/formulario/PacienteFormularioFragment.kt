@@ -233,36 +233,41 @@ class PacienteFormularioFragment : Fragment() {
                             sus = sus,
                             telefone = telefone,
                             endereco = endereco,
-                            syncStatus = SyncStatus.PENDING_UPLOAD, // IMPORTANTE: Marcar para sincronização
+                            syncStatus = SyncStatus.PENDING_UPLOAD,
                             updatedAt = System.currentTimeMillis()
                         )
 
-                        // Atualizar no banco LOCAL PRIMEIRO
+                        // Atualizar no banco LOCAL PRIMEIRO ***
                         pacienteDao.updatePaciente(pacienteAtualizado)
                         Log.d("PacienteForm", "✅ Paciente atualizado no banco local")
 
-                        // Atualizar relacionamentos com especialidades
+                        // Atualizar relacionamentos LOCAL ***
                         updateEspecialidadesRelationships(pacienteId, especialidadesSelecionadas)
                         Log.d("PacienteForm", "✅ Relacionamentos atualizados")
 
-                        // SINCRONIZAÇÃO IMEDIATA
+                        // SINCRONIZAÇÃO EM ETAPAS ***
                         try {
                             Log.d("PacienteForm", "🔄 Iniciando sincronização do paciente atualizado...")
 
-                            // Mostrar mensagem imediata de sucesso local
                             Toast.makeText(
                                 requireContext(),
-                                "Paciente atualizado localmente! Sincronizando...",
+                                "Paciente atualizado! Sincronizando...",
                                 Toast.LENGTH_SHORT
                             ).show()
 
-                            // Chamar sincronização através do ViewModel
+                            // Sincronizar dados básicos do paciente
                             viewModel.syncPacienteUpdated()
 
-                            // Aguardar um pouco para dar tempo da sincronização tentar
+                            // Aguardar um pouco para o paciente ser sincronizado primeiro
+                            kotlinx.coroutines.delay(2000)
+
+                            // Sincronizar relacionamentos especificamente
+                            Log.d("PacienteForm", "🔗 Sincronizando relacionamentos...")
+                            viewModel.syncPacienteRelationships(pacienteId)
+
+                            // Aguardar um pouco para completar
                             kotlinx.coroutines.delay(1000)
 
-                            // Mostrar mensagem de conclusão
                             Toast.makeText(
                                 requireContext(),
                                 "Sincronização iniciada! Verifique os logs.",
@@ -270,10 +275,10 @@ class PacienteFormularioFragment : Fragment() {
                             ).show()
 
                         } catch (syncError: Exception) {
-                            Log.w("PacienteForm", "⚠️ Erro na sincronização imediata", syncError)
+                            Log.w("PacienteForm", "⚠️ Erro na sincronização", syncError)
                             Toast.makeText(
                                 requireContext(),
-                                "Paciente salvo localmente! Será sincronizado quando houver conexão.",
+                                "Dados salvos localmente! Serão sincronizados quando houver conexão.",
                                 Toast.LENGTH_LONG
                             ).show()
                         }

@@ -190,6 +190,28 @@ class PacienteFormularioViewModel @Inject constructor(
     }
 
     /**
+     * Sincroniza apenas os relacionamentos de um paciente específico
+     */
+    fun syncPacienteRelationships(pacienteLocalId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🔗 Iniciando sincronização de relacionamentos para: $pacienteLocalId")
+
+                val result = syncRepository.syncPacienteRelationshipsOnly(pacienteLocalId)
+
+                if (result.isSuccess) {
+                    Log.d(TAG, "✅ Sincronização de relacionamentos concluída com sucesso")
+                } else {
+                    Log.w(TAG, "⚠️ Falha na sincronização de relacionamentos: ${result.exceptionOrNull()?.message}")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Erro na sincronização de relacionamentos", e)
+            }
+        }
+    }
+
+    /**
      * Sincroniza novo paciente
      */
     fun syncNovoPaciente() {

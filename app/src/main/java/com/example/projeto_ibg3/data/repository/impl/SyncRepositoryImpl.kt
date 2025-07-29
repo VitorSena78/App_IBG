@@ -5,6 +5,7 @@ import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.dao.PacienteDao
 import com.example.projeto_ibg3.data.local.database.dao.PacienteEspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
+import com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity
 import com.example.projeto_ibg3.data.mappers.*
 import com.example.projeto_ibg3.data.remote.api.ApiResult
 import com.example.projeto_ibg3.data.remote.api.ApiService
@@ -386,6 +387,22 @@ class SyncRepositoryImpl @Inject constructor(
             try {
                 val resultado = tentarAtualizarPaciente(entity)
                 processarResultadoAtualizacao(entity, resultado)
+
+                // *** NOVO: Sincronizar relacionamentos após atualizar paciente ***
+                if (resultado.isSuccess) {
+                    Log.d(TAG, "🔗 Sincronizando relacionamentos para paciente atualizado: ${entity.localId}")
+
+                    try {
+                        val relationshipResult = syncPacienteRelationships(entity.localId)
+                        if (relationshipResult.isFailure) {
+                            Log.w(TAG, "⚠️ Falha na sincronização de relacionamentos: ${relationshipResult.exceptionOrNull()?.message}")
+                        }
+                    } catch (relationshipError: Exception) {
+                        Log.w(TAG, "⚠️ Erro na sincronização de relacionamentos", relationshipError)
+                        // Não falhar a atualização do paciente por causa dos relacionamentos
+                    }
+                }
+
             } catch (e: Exception) {
                 handleAtualizacaoExcecao(entity, e)
             }
@@ -865,65 +882,121 @@ class SyncRepositoryImpl @Inject constructor(
         Log.d(TAG, "Novo paciente inserido: ${dto.nome}")
     }
 
-    private suspend fun processarCriacaoRelacionamentos(relations: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity>) {
-        relations.chunked(BATCH_SIZE).forEach { batch ->
-            try {
-                val relationsDto = batch.mapNotNull { entity ->
-                    criarRelacionamentoDto(entity)
-                }
+    private suspend fun processarCriacaoRelacionamentos(relations: List<PacienteEspecialidadeEntity>) {
+        Log.d(TAG, "=== INICIANDO CRIAÇÃO DE RELACIONAMENTOS ===")
+        Log.d(TAG, "Total para criar: ${relations.size}")
 
-                if (relationsDto.isNotEmpty()) {
-                    val response = apiService.syncPacienteEspecialidades(relationsDto)
-
-                    if (response.isSuccessful && response.body()?.success == true) {
-                        marcarRelacionamentosComoSincronizados(batch)
-                        Log.d(TAG, "Batch de ${batch.size} relacionamentos criado com sucesso")
-                    } else {
-                        marcarRelacionamentosComoFalha(batch)
-                        Log.e(TAG, "Falha na criação em batch de relacionamentos: ${response.message()}")
-                    }
-                }
-            } catch (e: Exception) {
-                incrementarTentativasRelacionamentos(batch, e)
-                Log.e(TAG, "Erro na criação em batch de relacionamentos", e)
-            }
-        }
-    }
-
-    private suspend fun processarDelecaoRelacionamentos(relations: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEspecialidadeEntity>) {
         relations.forEach { entity ->
             try {
-                if (entity.pacienteServerId != null && entity.especialidadeServerId != null) {
-                    val response = apiService.removeEspecialidadeFromPaciente(
-                        entity.pacienteServerId!!,
-                        entity.especialidadeServerId!!
+                Log.d(TAG, "Processando criação: ${entity.pacienteLocalId}_${entity.especialidadeLocalId}")
+
+                // Buscar paciente e especialidade para obter serverIds
+                val paciente = pacienteDao.getPacienteById(entity.pacienteLocalId)
+                val especialidade = especialidadeDao.getEspecialidadeById(entity.especialidadeLocalId)
+
+                if (paciente?.serverId != null && especialidade?.serverId != null) {
+                    Log.d(TAG, "Criando relacionamento: PacienteServerId=${paciente.serverId}, EspecialidadeServerId=${especialidade.serverId}")
+
+                    // Usar o endpoint POST individual para criar relacionamento
+                    val response = apiService.create(
+                        pacienteId = paciente.serverId!!.toInt(),
+                        especialidadeId = especialidade.serverId!!.toInt(),
+                        dataAtendimento = entity.dataAtendimento?.let {
+                            java.time.LocalDate.ofEpochDay(it / 86400000)
+                        }
                     )
 
                     if (response.isSuccessful) {
-                        pacienteEspecialidadeDao.deletePermanently(
+                        // Atualizar com serverIds e marcar como sincronizado
+                        pacienteEspecialidadeDao.updateSyncStatusWithServerIds(
                             entity.pacienteLocalId,
-                            entity.especialidadeLocalId
+                            entity.especialidadeLocalId,
+                            SyncStatus.SYNCED,
+                            paciente.serverId,
+                            especialidade.serverId
                         )
-                        Log.d(TAG, "Relacionamento deletado com sucesso: ${entity.relationId}")
+                        Log.d(TAG, "✅ Relacionamento criado com sucesso")
                     } else {
+                        // Marcar como falha
                         pacienteEspecialidadeDao.updateSyncStatus(
                             entity.pacienteLocalId,
                             entity.especialidadeLocalId,
-                            SyncStatus.DELETE_FAILED
+                            SyncStatus.UPLOAD_FAILED
                         )
-                        Log.e(TAG, "Falha na deleção do relacionamento ${entity.relationId}: ${response.message()}")
+                        Log.e(TAG, "❌ Falha na criação: ${response.code()} - ${response.message()}")
                     }
                 } else {
-                    Log.w(TAG, "Relacionamento ignorado na deleção - serverIds faltando: ${entity.relationId}")
+                    Log.w(TAG, "⚠️ ServerIds faltando - Paciente: ${paciente?.serverId}, Especialidade: ${especialidade?.serverId}")
+                    // Manter como PENDING_UPLOAD para tentar novamente
                 }
+
             } catch (e: Exception) {
+                Log.e(TAG, "💥 Erro ao criar relacionamento", e)
                 pacienteEspecialidadeDao.incrementSyncAttempts(
                     entity.pacienteLocalId,
                     entity.especialidadeLocalId,
                     System.currentTimeMillis(),
                     e.message
                 )
-                Log.e(TAG, "Erro na deleção do relacionamento ${entity.relationId}", e)
+            }
+        }
+    }
+
+    private suspend fun processarDelecaoRelacionamentos(relations: List<PacienteEspecialidadeEntity>) {
+        Log.d(TAG, "=== INICIANDO DELEÇÃO DE RELACIONAMENTOS ===")
+        Log.d(TAG, "Total para deletar: ${relations.size}")
+
+        relations.forEach { entity ->
+            try {
+                Log.d(TAG, "Processando deleção: ${entity.pacienteLocalId}_${entity.especialidadeLocalId}")
+
+                // Buscar paciente e especialidade para obter serverIds
+                val paciente = pacienteDao.getPacienteById(entity.pacienteLocalId)
+                val especialidade = especialidadeDao.getEspecialidadeById(entity.especialidadeLocalId)
+
+                if (paciente?.serverId != null && especialidade?.serverId != null) {
+                    Log.d(TAG, "Deletando relacionamento: PacienteServerId=${paciente.serverId}, EspecialidadeServerId=${especialidade.serverId}")
+
+                    // Usar o endpoint DELETE individual para remover relacionamento
+                    val response = apiService.deleteByPathVariables(
+                        pacienteId = paciente.serverId!!.toInt(),
+                        especialidadeId = especialidade.serverId!!.toInt()
+                    )
+
+                    if (response.isSuccessful) {
+                        // Deletar permanentemente do banco local
+                        pacienteEspecialidadeDao.deletePermanently(
+                            entity.pacienteLocalId,
+                            entity.especialidadeLocalId
+                        )
+                        Log.d(TAG, "✅ Relacionamento deletado com sucesso")
+                    } else {
+                        // Marcar como falha de deleção
+                        pacienteEspecialidadeDao.updateSyncStatus(
+                            entity.pacienteLocalId,
+                            entity.especialidadeLocalId,
+                            SyncStatus.DELETE_FAILED
+                        )
+                        Log.e(TAG, "❌ Falha na deleção: ${response.code()} - ${response.message()}")
+                    }
+                } else {
+                    Log.w(TAG, "⚠️ ServerIds faltando para deleção - Paciente: ${paciente?.serverId}, Especialidade: ${especialidade?.serverId}")
+                    // Se não tem serverIds, pode deletar localmente (nunca foi sincronizado)
+                    pacienteEspecialidadeDao.deletePermanently(
+                        entity.pacienteLocalId,
+                        entity.especialidadeLocalId
+                    )
+                    Log.d(TAG, "✅ Relacionamento local deletado (nunca foi sincronizado)")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Erro ao deletar relacionamento", e)
+                pacienteEspecialidadeDao.incrementSyncAttempts(
+                    entity.pacienteLocalId,
+                    entity.especialidadeLocalId,
+                    System.currentTimeMillis(),
+                    e.message
+                )
             }
         }
     }
@@ -1206,4 +1279,68 @@ class SyncRepositoryImpl @Inject constructor(
             Result.failure(e)
         }
     }
+
+    // ==================== MÉTODO PARA SINCRONIZAR RELACIONAMENTOS DE UM PACIENTE ESPECÍFICO ====================
+
+    suspend fun syncPacienteRelationships(pacienteLocalId: String): Result<Unit> {
+        return try {
+            Log.d(TAG, "🔗 Iniciando sincronização de relacionamentos para paciente: $pacienteLocalId")
+
+            if (!isNetworkAvailable()) {
+                Log.w(TAG, "Sem conexão - relacionamentos serão sincronizados posteriormente")
+                return Result.failure(Exception("Sem conexão com a internet"))
+            }
+
+            // Buscar relacionamentos pendentes deste paciente específico
+            val allPendingRelations = pacienteEspecialidadeDao.getItemsNeedingSync()
+            val pacientePendingRelations = allPendingRelations.filter {
+                it.pacienteLocalId == pacienteLocalId
+            }
+
+            Log.d(TAG, "Relacionamentos pendentes para este paciente: ${pacientePendingRelations.size}")
+
+            if (pacientePendingRelations.isEmpty()) {
+                Log.d(TAG, "Nenhum relacionamento pendente para sincronizar")
+                return Result.success(Unit)
+            }
+
+            // Separar por operação
+            val forDelete = pacientePendingRelations.filter {
+                it.syncStatus == SyncStatus.PENDING_DELETE
+            }
+            val forCreate = pacientePendingRelations.filter {
+                it.syncStatus == SyncStatus.PENDING_UPLOAD && !it.isDeleted
+            }
+
+            Log.d(TAG, "📊 OPERAÇÕES PENDENTES:")
+            Log.d(TAG, "  - Para deletar: ${forDelete.size}")
+            Log.d(TAG, "  - Para criar: ${forCreate.size}")
+
+            // IMPORTANTE: Deletar primeiro, depois criar
+            if (forDelete.isNotEmpty()) {
+                Log.d(TAG, "🗑️ Processando deleções...")
+                processarDelecaoRelacionamentos(forDelete)
+            }
+
+            if (forCreate.isNotEmpty()) {
+                Log.d(TAG, "🆕 Processando criações...")
+                processarCriacaoRelacionamentos(forCreate)
+            }
+
+            Log.d(TAG, "✅ Sincronização de relacionamentos concluída para paciente: $pacienteLocalId")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "💥 Erro na sincronização de relacionamentos do paciente: $pacienteLocalId", e)
+            Result.failure(e)
+        }
+    }
+
+    // ==================== MÉTODO PÚBLICO PARA CHAMAR DA UI ====================
+
+    override suspend fun syncPacienteRelationshipsOnly(pacienteLocalId: String): Result<Unit> {
+        Log.d(TAG, "🎯 Sincronização solicitada para relacionamentos do paciente: $pacienteLocalId")
+        return syncPacienteRelationships(pacienteLocalId)
+    }
+
 }

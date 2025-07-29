@@ -33,4 +33,6 @@ interface SyncRepository {
     suspend fun syncNovosPacientes(): Result<Unit>
     suspend fun syncAllPendingPacientes(): Result<Unit>
 
+    suspend fun syncPacienteRelationshipsOnly(pacienteLocalId: String): Result<Unit>
+
 }
