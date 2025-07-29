@@ -545,8 +545,8 @@ class SyncRepositoryImpl @Inject constructor(
                                     it
                                 )
                             ) }, // Converter Long para String
-                            createdAt = dateFormat.format(Date(entity.createdAt)), // Converter Long para String
-                            updatedAt = dateFormat.format(Date(entity.updatedAt)), // Converter Long para String
+                            createdAt = dateTimeFormat.format(Date(entity.createdAt)), // Converter Long para String
+                            updatedAt = dateTimeFormat.format(Date(entity.updatedAt)), // Converter Long para String
                             lastSyncTimestamp = entity.lastSyncTimestamp
                         )
                     } else {
@@ -643,39 +643,47 @@ class SyncRepositoryImpl @Inject constructor(
             val response = apiService.getUpdatedPacienteEspecialidades(lastSync)
 
             if (response.isSuccessful) {
-                val relationsDto = response.body() ?: emptyList()
-                Log.d(TAG, "Recebidos ${relationsDto.size} relacionamentos do servidor")
+                // Acessar o campo 'data' da ApiResponse
+                val apiResponse = response.body()
+                if (apiResponse?.success == true) {
+                    val relationsDto = apiResponse.data ?: emptyList()
+                    Log.d(TAG, "Recebidos ${relationsDto.size} relacionamentos do servidor")
 
-                if (relationsDto.isNotEmpty()) {
-                    // Log dos dados recebidos para debug
-                    relationsDto.forEachIndexed { index, dto ->
-                        Log.d(TAG, "Relacionamento $index: PacienteServerId=${dto.pacienteServerId}, EspecialidadeServerId=${dto.especialidadeServerId}, Data=${dto.dataAtendimento}")
+                    if (relationsDto.isNotEmpty()) {
+                        // Log dos dados recebidos para debug
+                        relationsDto.forEachIndexed { index, dto ->
+                            Log.d(TAG, "Relacionamento $index: PacienteServerId=${dto.pacienteServerId}, EspecialidadeServerId=${dto.especialidadeServerId}, Data=${dto.dataAtendimento}")
+                        }
+
+                        // Verificar se temos pacientes e especialidades necessários
+                        val allPacientes = pacienteDao.getAllPacientesList()
+                        val allEspecialidades = especialidadeDao.getAllEspecialidadesList()
+
+                        Log.d(TAG, "Pacientes disponíveis no banco local: ${allPacientes.size}")
+                        allPacientes.forEach { p: PacienteEntity ->
+                            Log.d(TAG, "  Paciente: ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
+                        }
+
+                        Log.d(TAG, "Especialidades disponíveis no banco local: ${allEspecialidades.size}")
+                        allEspecialidades.forEach { e ->
+                            Log.d(TAG, "  Especialidade: ${e.nome} (localId: ${e.localId}, serverId: ${e.serverId})")
+                        }
+
+                        // Processar relacionamentos
+                        processarRelacionamentosDoServidor(relationsDto)
+
+                        // Verificar quantos relacionamentos foram salvos
+                        val totalRelacionamentos = pacienteEspecialidadeDao.getTotalAssociations()
+                        Log.d(TAG, "Total de relacionamentos após sincronização: $totalRelacionamentos")
                     }
 
-                    // Verificar se temos pacientes e especialidades necessários
-                    val allPacientes = pacienteDao.getAllPacientesList()
-                    val allEspecialidades = especialidadeDao.getAllEspecialidadesList()
-
-                    Log.d(TAG, "Pacientes disponíveis no banco local: ${allPacientes.size}")
-                    allPacientes.forEach { p: PacienteEntity ->
-                        Log.d(TAG, "  Paciente: ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
-                    }
-
-                    Log.d(TAG, "Especialidades disponíveis no banco local: ${allEspecialidades.size}")
-                    allEspecialidades.forEach { e ->
-                        Log.d(TAG, "  Especialidade: ${e.nome} (localId: ${e.localId}, serverId: ${e.serverId})")
-                    }
-
-                    // Processar relacionamentos
-                    processarRelacionamentosDoServidor(relationsDto)
-
-                    // Verificar quantos relacionamentos foram salvos
-                    val totalRelacionamentos = pacienteEspecialidadeDao.getTotalAssociations()
-                    Log.d(TAG, "Total de relacionamentos após sincronização: $totalRelacionamentos")
+                    Log.d(TAG, "Download de relacionamentos concluído")
+                    Result.success(Unit)
+                } else {
+                    val error = apiResponse?.error ?: "API retornou success=false"
+                    Log.e(TAG, "Erro no download de relacionamentos: $error")
+                    Result.failure(Exception(error))
                 }
-
-                Log.d(TAG, "Download de relacionamentos concluído")
-                Result.success(Unit)
             } else {
                 val error = "Erro HTTP: ${response.code()} - ${response.message()}"
                 Log.e(TAG, "Erro no download de relacionamentos: $error")
@@ -683,7 +691,7 @@ class SyncRepositoryImpl @Inject constructor(
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Erro no download de relacionamentos", e)
+            Log.e(TAG, "Erro no download de relacionamentos (Ask Gemini)", e)
             Result.failure(e)
         }
     }

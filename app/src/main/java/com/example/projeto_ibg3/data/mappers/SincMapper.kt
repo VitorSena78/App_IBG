@@ -493,9 +493,16 @@ fun String?.toIsoDateLong(): Long {
         if (this.isNullOrBlank()) {
             System.currentTimeMillis()
         } else {
-            // Tenta primeiro o formato ISO completo
-            val date = isoDateFormat.parse(this)
-            date?.time ?: System.currentTimeMillis()
+            try {
+                // Tenta primeiro o formato ISO completo
+                val date = isoDateFormat.parse(this)
+                date?.time ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                // Tenta o formato completo com data e hora
+                val date = dateTimeFormat.parse(this)
+                date?.time ?: System.currentTimeMillis()
+            }
+
         }
     } catch (e: Exception) {
         Log.e("SincMapper", "Erro ao converter data ISO: $this", e)

@@ -124,5 +124,5 @@ interface ApiService {
 
     // Sincronização incremental
     @GET("pacientes_has_especialidades/pacientes/especialidades/updated")
-    suspend fun getUpdatedPacienteEspecialidades(@Query("since") timestamp: Long): Response<List<PacienteEspecialidadeDTO>>
+    suspend fun getUpdatedPacienteEspecialidades(@Query("since") timestamp: Long): Response<ApiResponse<List<PacienteEspecialidadeDTO>>>
 }
