@@ -296,24 +296,101 @@ class PacienteFormularioFragment : Fragment() {
 
     private suspend fun updateEspecialidadesRelationships(pacienteId: String, especialidadesSelecionadas: List<String>) {
         try {
-            // Remover todas as especialidades atuais do paciente
-            pacienteEspecialidadeDao.deleteByPacienteId(pacienteId)
+            Log.d("PacienteForm", "=== INICIANDO ATUALIZAÇÃO DE RELACIONAMENTOS ===")
+            Log.d("PacienteForm", "Paciente ID: $pacienteId")
+            Log.d("PacienteForm", "Especialidades selecionadas: $especialidadesSelecionadas")
 
-            // Adicionar as novas especialidades selecionadas
-            especialidadesSelecionadas.forEach { nomeEspecialidade ->
+            // 1. Buscar relacionamentos atuais do paciente
+            val relacionamentosAtuais = pacienteEspecialidadeDao.getByPacienteId(pacienteId)
+            Log.d("PacienteForm", "Relacionamentos atuais: ${relacionamentosAtuais.size}")
+
+            // 2. Buscar especialidades atuais por nome
+            val especialidadesAtuais = relacionamentosAtuais.mapNotNull { relacionamento ->
+                especialidadeDao.getEspecialidadeById(relacionamento.especialidadeLocalId)?.nome
+            }
+            Log.d("PacienteForm", "Especialidades atuais: $especialidadesAtuais")
+
+            // 3. Determinar o que foi removido e o que foi adicionado
+            val especialidadesParaRemover = especialidadesAtuais - especialidadesSelecionadas.toSet()
+            val especialidadesParaAdicionar = especialidadesSelecionadas - especialidadesAtuais.toSet()
+
+            Log.d("PacienteForm", "Para remover: $especialidadesParaRemover")
+            Log.d("PacienteForm", "Para adicionar: $especialidadesParaAdicionar")
+
+            // 4. REMOVER relacionamentos (usando SOFT DELETE)
+            especialidadesParaRemover.forEach { nomeEspecialidade ->
+                val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
+                if (especialidade != null) {
+                    // USAR SOFT DELETE ao invés de deleção física
+                    pacienteEspecialidadeDao.markAsDeleted(
+                        pacienteLocalId = pacienteId,
+                        especialidadeLocalId = especialidade.localId,
+                        status = SyncStatus.PENDING_DELETE,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    Log.d("PacienteForm", "✅ Relacionamento marcado para DELEÇÃO: Paciente $pacienteId - Especialidade ${especialidade.nome} (${especialidade.localId})")
+                }
+            }
+
+            // 5. ADICIONAR novos relacionamentos
+            especialidadesParaAdicionar.forEach { nomeEspecialidade ->
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                 if (especialidade != null) {
-                    val pacienteEspecialidade = PacienteEspecialidadeEntity(
-                        pacienteLocalId = pacienteId,
-                        especialidadeLocalId = especialidade.localId, // Usar localId
-                        dataAtendimento = System.currentTimeMillis()
-                    )
+                    // Verificar se já existe um relacionamento (mesmo que deletado)
+                    val relacionamentoExistente = pacienteEspecialidadeDao.getById(pacienteId, especialidade.localId)
 
-                    pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
-                    Log.d("PacienteForm", "Relacionamento atualizado: Paciente $pacienteId - Especialidade ${especialidade.localId}")
+                    if (relacionamentoExistente != null && relacionamentoExistente.isDeleted) {
+                        // Se existe mas está deletado, restaurar
+                        pacienteEspecialidadeDao.restore(
+                            pacienteLocalId = pacienteId,
+                            especialidadeLocalId = especialidade.localId,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        Log.d("PacienteForm", "✅ Relacionamento RESTAURADO: Paciente $pacienteId - Especialidade ${especialidade.nome}")
+                    } else if (relacionamentoExistente == null) {
+                        // Se não existe, criar novo
+                        val novoRelacionamento = PacienteEspecialidadeEntity(
+                            pacienteLocalId = pacienteId,
+                            especialidadeLocalId = especialidade.localId,
+                            dataAtendimento = System.currentTimeMillis(),
+                            syncStatus = SyncStatus.PENDING_UPLOAD, // MARCAR PARA SINCRONIZAÇÃO
+                            isDeleted = false,
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+
+                        pacienteEspecialidadeDao.insert(novoRelacionamento)
+                        Log.d("PacienteForm", "✅ Novo relacionamento CRIADO: Paciente $pacienteId - Especialidade ${especialidade.nome} (${especialidade.localId})")
+                    } else {
+                        Log.d("PacienteForm", "⚪ Relacionamento já existe e está ativo: Paciente $pacienteId - Especialidade ${especialidade.nome}")
+                    }
+                } else {
+                    Log.w("PacienteForm", "⚠️ Especialidade não encontrada: $nomeEspecialidade")
                 }
             }
+
+            // 6. Verificar resultado final
+            val relacionamentosFinais = pacienteEspecialidadeDao.getByPacienteId(pacienteId)
+            Log.d("PacienteForm", "=== RESULTADO FINAL ===")
+            Log.d("PacienteForm", "Total de relacionamentos ativos: ${relacionamentosFinais.size}")
+
+            relacionamentosFinais.forEach { rel ->
+                val esp = especialidadeDao.getEspecialidadeById(rel.especialidadeLocalId)
+                Log.d("PacienteForm", "  - ${esp?.nome} (status: ${rel.syncStatus}, deleted: ${rel.isDeleted})")
+            }
+
+            // 7. Log dos relacionamentos pendentes para sincronização
+            val relacionamentosPendentes = pacienteEspecialidadeDao.getPendingSync()
+            Log.d("PacienteForm", "Relacionamentos pendentes para sincronização: ${relacionamentosPendentes.size}")
+
+            relacionamentosPendentes.forEach { rel ->
+                val pac = pacienteDao.getPacienteById(rel.pacienteLocalId)
+                val esp = especialidadeDao.getEspecialidadeById(rel.especialidadeLocalId)
+                Log.d("PacienteForm", "  PENDENTE: ${pac?.nome} -> ${esp?.nome} (status: ${rel.syncStatus})")
+            }
+
+            Log.d("PacienteForm", "=== ATUALIZAÇÃO DE RELACIONAMENTOS CONCLUÍDA ===")
 
         } catch (e: Exception) {
             Log.e("PacienteForm", "Erro ao atualizar relacionamentos com especialidades", e)
