@@ -233,28 +233,57 @@ class PacienteFormularioFragment : Fragment() {
                             sus = sus,
                             telefone = telefone,
                             endereco = endereco,
-                            syncStatus = SyncStatus.PENDING_UPLOAD,
+                            syncStatus = SyncStatus.PENDING_UPLOAD, // IMPORTANTE: Marcar para sincronização
                             updatedAt = System.currentTimeMillis()
                         )
 
-                        // Atualizar no banco
+                        // Atualizar no banco LOCAL PRIMEIRO
                         pacienteDao.updatePaciente(pacienteAtualizado)
+                        Log.d("PacienteForm", "✅ Paciente atualizado no banco local")
 
                         // Atualizar relacionamentos com especialidades
                         updateEspecialidadesRelationships(pacienteId, especialidadesSelecionadas)
+                        Log.d("PacienteForm", "✅ Relacionamentos atualizados")
 
-                        Toast.makeText(
-                            requireContext(),
-                            "Paciente atualizado com sucesso!",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        // SINCRONIZAÇÃO IMEDIATA
+                        try {
+                            Log.d("PacienteForm", "🔄 Iniciando sincronização do paciente atualizado...")
+
+                            // Mostrar mensagem imediata de sucesso local
+                            Toast.makeText(
+                                requireContext(),
+                                "Paciente atualizado localmente! Sincronizando...",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                            // Chamar sincronização através do ViewModel
+                            viewModel.syncPacienteUpdated()
+
+                            // Aguardar um pouco para dar tempo da sincronização tentar
+                            kotlinx.coroutines.delay(1000)
+
+                            // Mostrar mensagem de conclusão
+                            Toast.makeText(
+                                requireContext(),
+                                "Sincronização iniciada! Verifique os logs.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                        } catch (syncError: Exception) {
+                            Log.w("PacienteForm", "⚠️ Erro na sincronização imediata", syncError)
+                            Toast.makeText(
+                                requireContext(),
+                                "Paciente salvo localmente! Será sincronizado quando houver conexão.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
 
                         // Voltar para a tela anterior
                         findNavController().navigateUp()
                     }
 
                 } catch (e: Exception) {
-                    Log.e("PacienteForm", "Erro ao atualizar paciente", e)
+                    Log.e("PacienteForm", "💥 Erro ao atualizar paciente", e)
                     Toast.makeText(
                         requireContext(),
                         "Erro ao atualizar paciente: ${e.message}",
@@ -564,30 +593,59 @@ class PacienteFormularioFragment : Fragment() {
                         telefone = telefone.ifEmpty { "" },
                         endereco = endereco.ifEmpty { "" },
                         syncStatus = SyncStatus.PENDING_UPLOAD,
-                        deviceId = deviceId, // Corrigido: passando deviceId
-                        updatedAt = System.currentTimeMillis() // Corrigido: usando updatedAt
+                        deviceId = deviceId,
+                        updatedAt = System.currentTimeMillis()
                     )
 
-                    // Inserir paciente e obter o ID
-                    val pacienteId = pacienteDao.insertPaciente(pacienteEntity)
+                    // Inserir paciente no banco LOCAL PRIMEIRO
+                    pacienteDao.insertPaciente(pacienteEntity)
+                    Log.d("PacienteForm", "✅ Novo paciente inserido no banco local")
 
                     // Buscar o paciente recém-criado para obter o localId
                     val pacienteCriado = pacienteDao.getPacienteByCpf(cpf)
                     pacienteCriado?.let { paciente ->
-                        // Corrigido: passando String ao invés de Long
+                        // Salvar relacionamentos com especialidades
                         saveEspecialidadesRelationships(paciente.localId, especialidadesSelecionadas)
+                        Log.d("PacienteForm", "✅ Relacionamentos salvos")
                     }
 
-                    Toast.makeText(
-                        requireContext(),
-                        "Paciente salvo com sucesso!",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    // SINCRONIZAÇÃO IMEDIATA PARA NOVO PACIENTE
+                    try {
+                        Log.d("PacienteForm", "🆕 Iniciando sincronização do novo paciente...")
+
+                        // Mostrar mensagem imediata de sucesso local
+                        Toast.makeText(
+                            requireContext(),
+                            "Paciente salvo localmente! Sincronizando...",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        // Chamar sincronização através do ViewModel
+                        viewModel.syncNovoPaciente()
+
+                        // Aguardar um pouco para dar tempo da sincronização tentar
+                        kotlinx.coroutines.delay(1000)
+
+                        // Mostrar mensagem de conclusão
+                        Toast.makeText(
+                            requireContext(),
+                            "Sincronização iniciada! Verifique os logs.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                    } catch (syncError: Exception) {
+                        Log.w("PacienteForm", "⚠️ Erro na sincronização imediata", syncError)
+                        Toast.makeText(
+                            requireContext(),
+                            "Paciente salvo localmente! Será sincronizado quando houver conexão.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
 
                     clearForm()
 
                 } catch (e: Exception) {
-                    Log.e("PacienteForm", "Erro ao salvar paciente", e)
+                    Log.e("PacienteForm", "💥 Erro ao salvar paciente", e)
                     Toast.makeText(
                         requireContext(),
                         "Erro ao salvar paciente: ${e.message}",

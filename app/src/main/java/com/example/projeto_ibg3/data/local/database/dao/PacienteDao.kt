@@ -242,4 +242,48 @@ interface PacienteDao {
         )
     ): List<PacienteEntity>
 
+    // ==================== MÉTODOS PARA SINCRONIZAÇÃO (podem estar faltando) ====================
+
+    /**
+     * Busca pacientes por status específico
+     */
+    @Query("SELECT * FROM pacientes WHERE sync_status = :syncStatus")
+    suspend fun getPacientesBySyncStatus(syncStatus: SyncStatus): List<PacienteEntity>
+
+    /**
+     * CRÍTICO: Pacientes novos (sem serverId)
+     */
+    @Query("SELECT * FROM pacientes WHERE server_id IS NULL AND sync_status = :syncStatus")
+    suspend fun getNovosPacientes(syncStatus: SyncStatus = SyncStatus.PENDING_UPLOAD): List<PacienteEntity>
+
+    /**
+     * CRÍTICO: Pacientes para atualizar (com serverId)
+     */
+    @Query("SELECT * FROM pacientes WHERE server_id IS NOT NULL AND sync_status = :syncStatus")
+    suspend fun getPacientesParaAtualizar(syncStatus: SyncStatus = SyncStatus.PENDING_UPLOAD): List<PacienteEntity>
+
+
+    // ==================== MÉTODOS ADICIONAIS ÚTEIS ====================
+
+    /**
+     * Buscar pacientes que falharam na sincronização
+     */
+    @Query("SELECT * FROM pacientes WHERE sync_status IN (:failedStatuses)")
+    suspend fun getPacientesComFalha(
+        failedStatuses: List<SyncStatus> = listOf(
+            SyncStatus.UPLOAD_FAILED,
+            SyncStatus.DELETE_FAILED
+        )
+    ): List<PacienteEntity>
+
+    /**
+     * Marcar para deleção (soft delete)
+     */
+    @Query("UPDATE pacientes SET is_deleted = 1, sync_status = :syncStatus, updated_at = :updatedAt WHERE local_id = :localId")
+    suspend fun markForDeletion(
+        localId: String,
+        syncStatus: SyncStatus = SyncStatus.PENDING_DELETE,
+        updatedAt: Long = System.currentTimeMillis()
+    )
+
 }

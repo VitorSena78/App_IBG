@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+import com.example.projeto_ibg3.data.repository.impl.SyncRepositoryImpl
 import com.example.projeto_ibg3.domain.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -159,6 +160,131 @@ class PacienteFormularioViewModel @Inject constructor(
     fun getFilteredEspecialidades(sharedPreferences: android.content.SharedPreferences): List<EspecialidadeEntity> {
         return _especialidades.value.filter { especialidade ->
             isEspecialidadeEnabled(especialidade.nome, sharedPreferences)
+        }
+    }
+
+    /**
+     * Sincroniza paciente atualizado
+     */
+    fun syncPacienteUpdated() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🔄 Iniciando sincronização de paciente atualizado...")
+
+                // Chamar o método específico para pacientes atualizados
+                val result = syncRepository.syncPacientesUpdated()
+
+                if (result.isSuccess) {
+                    Log.d(TAG, "✅ Sincronização de paciente atualizado concluída com sucesso")
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Erro desconhecido"
+                    Log.e(TAG, "❌ Erro na sincronização de paciente atualizado: $error")
+                    _errorMessage.value = "Erro na sincronização: $error"
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Exceção ao sincronizar paciente atualizado", e)
+                _errorMessage.value = "Erro na sincronização: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Sincroniza novo paciente
+     */
+    fun syncNovoPaciente() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🆕 Iniciando sincronização de novo paciente...")
+
+                // Chamar o método específico para novos pacientes
+                val result = syncRepository.syncNovosPacientes()
+
+                if (result.isSuccess) {
+                    Log.d(TAG, "✅ Sincronização de novo paciente concluída com sucesso")
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Erro desconhecido"
+                    Log.e(TAG, "❌ Erro na sincronização de novo paciente: $error")
+                    _errorMessage.value = "Erro na sincronização: $error"
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Exceção ao sincronizar novo paciente", e)
+                _errorMessage.value = "Erro na sincronização: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Força sincronização de todos os pacientes pendentes
+     */
+    fun forceSyncAllPacientes() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🚀 Iniciando sincronização forçada de todos os pacientes...")
+
+                // Chamar sincronização de todos os pacientes pendentes
+                val result = syncRepository.syncAllPendingPacientes()
+
+                if (result.isSuccess) {
+                    Log.d(TAG, "✅ Sincronização forçada concluída com sucesso")
+                } else {
+                    val error = result.exceptionOrNull()?.message ?: "Erro desconhecido"
+                    Log.e(TAG, "❌ Erro na sincronização forçada: $error")
+                    _errorMessage.value = "Erro na sincronização: $error"
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Exceção na sincronização forçada", e)
+                _errorMessage.value = "Erro na sincronização: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Método de debug para verificar pacientes pendentes
+     */
+    fun debugPacientesPendentes() {
+        viewModelScope.launch {
+            try {
+                // Se seu SyncRepositoryImpl tiver o método debugPacientesPendentes
+                if (syncRepository is SyncRepositoryImpl) {
+                    syncRepository.debugPacientesPendentes()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro no debug", e)
+            }
+        }
+    }
+
+    /**
+     * Método para teste de sincronização com logging detalhado
+     */
+    fun testSyncWithDetailedLogging() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "🧪 Iniciando teste de sincronização com logging detalhado...")
+
+                // Se seu SyncRepositoryImpl tiver o método forceSyncWithDetailedLogging
+                if (syncRepository is SyncRepositoryImpl) {
+                    val result = syncRepository.forceSyncWithDetailedLogging()
+
+                    if (result.isSuccess) {
+                        Log.d(TAG, "✅ Teste de sincronização concluído com sucesso")
+                        _errorMessage.value = null // Limpar erro anterior
+                    } else {
+                        val error = result.exceptionOrNull()?.message ?: "Erro desconhecido"
+                        Log.e(TAG, "❌ Teste de sincronização falhou: $error")
+                        _errorMessage.value = "Teste falhou: $error"
+                    }
+                } else {
+                    Log.w(TAG, "⚠️ Método de teste não disponível para este tipo de repository")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "💥 Exceção no teste de sincronização", e)
+                _errorMessage.value = "Erro do teste: ${e.message}"
+            }
         }
     }
 }

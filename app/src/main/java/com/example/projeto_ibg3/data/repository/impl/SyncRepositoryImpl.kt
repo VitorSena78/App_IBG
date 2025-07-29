@@ -214,49 +214,83 @@ class SyncRepositoryImpl @Inject constructor(
 
     private suspend fun uploadPendingPacientes(): Result<Unit> {
         return try {
-            Log.d(TAG, "Iniciando upload de pacientes pendentes")
+            Log.d(TAG, "=== INICIANDO UPLOAD DE PACIENTES PENDENTES ===")
 
-            val pendingPacientes = pacienteDao.getItemsNeedingSync()
+            // USAR O MÉTODO ESPECÍFICO DO DAO
+            val pendingPacientes = pacienteDao.getItemsNeedingSync(
+                listOf(
+                    SyncStatus.PENDING_UPLOAD,
+                    SyncStatus.PENDING_DELETE,
+                    SyncStatus.UPLOAD_FAILED,
+                    SyncStatus.DELETE_FAILED
+                )
+            )
+
             Log.d(TAG, "Encontrados ${pendingPacientes.size} pacientes para sincronizar")
 
+            // LOG DETALHADO DE CADA PACIENTE
+            pendingPacientes.forEachIndexed { index, paciente ->
+                Log.d(TAG, "Paciente $index:")
+                Log.d(TAG, "  - Nome: ${paciente.nome}")
+                Log.d(TAG, "  - LocalId: ${paciente.localId}")
+                Log.d(TAG, "  - ServerId: ${paciente.serverId}")
+                Log.d(TAG, "  - SyncStatus: ${paciente.syncStatus}")
+                Log.d(TAG, "  - IsDeleted: ${paciente.isDeleted}")
+                Log.d(TAG, "  - UpdatedAt: ${paciente.updatedAt}")
+            }
+
             if (pendingPacientes.isEmpty()) {
-                Log.d(TAG, "Nenhum paciente pendente para upload")
+                Log.d(TAG, "❌ Nenhum paciente pendente para upload")
                 return Result.success(Unit)
             }
 
-            // Separar por tipo de operação
+            // Separar por tipo de operação - CORRIGIDO
             val forUpload = pendingPacientes.filter {
-                it.syncStatus == SyncStatus.PENDING_UPLOAD && !it.isDeleted
+                it.syncStatus == SyncStatus.PENDING_UPLOAD && it.serverId == null && !it.isDeleted
             }
             val forUpdate = pendingPacientes.filter {
                 it.syncStatus == SyncStatus.PENDING_UPLOAD && it.serverId != null && !it.isDeleted
             }
             val forDelete = pendingPacientes.filter {
-                it.syncStatus == SyncStatus.PENDING_DELETE && it.serverId != null
+                (it.syncStatus == SyncStatus.PENDING_DELETE || it.isDeleted) && it.serverId != null
             }
 
-            Log.d(TAG, "Para criar: ${forUpload.size}, Para atualizar: ${forUpdate.size}, Para deletar: ${forDelete.size}")
+            Log.d(TAG, "📊 SEPARAÇÃO POR OPERAÇÃO:")
+            Log.d(TAG, "  - Para criar: ${forUpload.size}")
+            Log.d(TAG, "  - Para atualizar: ${forUpdate.size}")
+            Log.d(TAG, "  - Para deletar: ${forDelete.size}")
+
+            // Log detalhado dos pacientes para atualização
+            if (forUpdate.isNotEmpty()) {
+                Log.d(TAG, "🔄 PACIENTES PARA ATUALIZAR:")
+                forUpdate.forEach { paciente ->
+                    Log.d(TAG, "  - ${paciente.nome} (localId: ${paciente.localId}, serverId: ${paciente.serverId})")
+                }
+            }
 
             // Processar criações
             if (forUpload.isNotEmpty()) {
+                Log.d(TAG, "🆕 Processando criações...")
                 processarCriacaoPacientes(forUpload)
             }
 
             // Processar atualizações
             if (forUpdate.isNotEmpty()) {
+                Log.d(TAG, "🔄 Processando atualizações...")
                 processarAtualizacaoPacientes(forUpdate)
             }
 
             // Processar deleções
             if (forDelete.isNotEmpty()) {
+                Log.d(TAG, "🗑️ Processando deleções...")
                 processarDelecaoPacientes(forDelete)
             }
 
-            Log.d(TAG, "Upload de pacientes concluído")
+            Log.d(TAG, "✅ Upload de pacientes concluído")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Erro no upload de pacientes", e)
+            Log.e(TAG, "❌ Erro no upload de pacientes", e)
             Result.failure(e)
         }
     }
@@ -297,22 +331,40 @@ class SyncRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun processarAtualizacaoPacientes(pacientes: List<com.example.projeto_ibg3.data.local.database.entities.PacienteEntity>) {
+    private suspend fun processarAtualizacaoPacientes(pacientes: List<PacienteEntity>) {
+        Log.d(TAG, "Processando ${pacientes.size} pacientes para atualização")
+
         pacientes.forEach { entity ->
             try {
-                val pacienteDto = entity.toPacienteDto()
-                val response = apiService.updatePaciente(entity.serverId!!, pacienteDto)
+                Log.d(TAG, "Atualizando paciente: ${entity.nome} (serverId: ${entity.serverId})")
 
-                if (response.isSuccessful && response.body()?.success == true) {
-                    pacienteDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
-                    Log.d(TAG, "Paciente ${entity.localId} atualizado com sucesso")
+                val pacienteDto = entity.toPacienteDto()
+                Log.d(TAG, "DTO criado: ${pacienteDto}")
+
+                val response = apiService.updatePaciente(entity.serverId!!, pacienteDto)
+                Log.d(TAG, "Response code: ${response.code()}, isSuccessful: ${response.isSuccessful()}")
+
+                if (response.isSuccessful) {
+                    val responseBody = response.body()
+                    Log.d(TAG, "Response body: ${responseBody}")
+
+                    if (responseBody?.success == true) {
+                        pacienteDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
+                        Log.d(TAG, "Paciente ${entity.localId} atualizado com sucesso")
+                    } else {
+                        val errorMsg = responseBody?.error ?: "Resposta indica falha"
+                        Log.e(TAG, "API retornou falha: $errorMsg")
+                        pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                    }
                 } else {
+                    val errorBody = response.errorBody()?.string()
+                    Log.e(TAG, "Falha na atualização do paciente ${entity.localId}: ${response.code()} - ${response.message()}")
+                    Log.e(TAG, "Error body: $errorBody")
                     pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
-                    Log.e(TAG, "Falha na atualização do paciente ${entity.localId}: ${response.message()}")
                 }
             } catch (e: Exception) {
-                pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
                 Log.e(TAG, "Erro na atualização do paciente ${entity.localId}", e)
+                pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
             }
         }
     }
@@ -1083,6 +1135,230 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun downloadPacienteEspecialidadesUpdated(): Result<Unit> {
         return downloadUpdatedPacienteEspecialidades()
+    }
+
+    // ==================== NOVOS MÉTODOS PARA SINCRONIZAÇÃO ESPECÍFICA ====================
+
+    /**
+     * Sincroniza pacientes que foram atualizados (status PENDING_UPLOAD com serverId)
+     */
+    override suspend fun syncPacientesUpdated(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando sincronização de pacientes atualizados...")
+
+            if (!networkManager.checkConnection()) {
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+
+            // Buscar pacientes com status PENDING_UPLOAD que têm serverId (já existem no servidor)
+            val pacientesParaAtualizar = pacienteDao.getPacientesParaAtualizar(SyncStatus.PENDING_UPLOAD)
+
+            Log.d(TAG, "Encontrados ${pacientesParaAtualizar.size} pacientes para atualizar")
+
+            if (pacientesParaAtualizar.isEmpty()) {
+                Log.d(TAG, "Nenhum paciente para atualizar")
+                return Result.success(Unit)
+            }
+
+            // Processar atualizações
+            processarAtualizacaoPacientes(pacientesParaAtualizar)
+
+            Log.d(TAG, "Sincronização de pacientes atualizados concluída")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro na sincronização de pacientes atualizados", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Sincroniza apenas novos pacientes (que ainda não têm serverId)
+     */
+    override suspend fun syncNovosPacientes(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando sincronização de novos pacientes...")
+
+            if (!networkManager.checkConnection()) {
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+
+            // Buscar pacientes novos (sem serverId e com status PENDING_UPLOAD)
+            val novosPacientes = pacienteDao.getNovosPacientes(SyncStatus.PENDING_UPLOAD)
+
+            Log.d(TAG, "Encontrados ${novosPacientes.size} novos pacientes para sincronizar")
+
+            if (novosPacientes.isEmpty()) {
+                Log.d(TAG, "Nenhum novo paciente para sincronizar")
+                return Result.success(Unit)
+            }
+
+            // Processar criações (reutilizar método existente)
+            processarCriacaoPacientes(novosPacientes)
+
+            Log.d(TAG, "Sincronização de novos pacientes concluída")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro na sincronização de novos pacientes", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Sincroniza todos os pacientes pendentes (novos + atualizados)
+     */
+    override suspend fun syncAllPendingPacientes(): Result<Unit> {
+        return try {
+            Log.d(TAG, "Iniciando sincronização de todos os pacientes pendentes...")
+
+            // Usar o método existente que já faz tudo isso
+            val result = uploadPendingPacientes()
+
+            if (result.isSuccess) {
+                Log.d(TAG, "Sincronização de todos os pacientes pendentes concluída")
+            } else {
+                Log.e(TAG, "Erro na sincronização de pacientes pendentes: ${result.exceptionOrNull()?.message}")
+            }
+
+            result
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro na sincronização de todos os pacientes pendentes", e)
+            Result.failure(e)
+        }
+    }
+
+    // ==================== MÉTODO AUXILIAR PARA MELHOR LOGGING ====================
+
+    /**
+     * Versão otimizada do processamento de atualizações com melhor logging
+     */
+    private suspend fun processarAtualizacoesPacientesOtimizado(pacientes: List<PacienteEntity>) {
+        Log.d(TAG, "=== PROCESSANDO ${pacientes.size} ATUALIZAÇÕES DE PACIENTES ===")
+
+        for ((index, entity) in pacientes.withIndex()) {
+            try {
+                Log.d(TAG, "[$index/${pacientes.size}] Atualizando: ${entity.nome}")
+                Log.d(TAG, "  - LocalId: ${entity.localId}")
+                Log.d(TAG, "  - ServerId: ${entity.serverId}")
+                Log.d(TAG, "  - Status: ${entity.syncStatus}")
+                Log.d(TAG, "  - UpdatedAt: ${entity.updatedAt}")
+
+                if (entity.serverId == null) {
+                    Log.w(TAG, "  ⚠️ Paciente marcado para atualização mas sem serverId, pulando...")
+                    continue
+                }
+
+                val pacienteDto = entity.toPacienteDto()
+                Log.d(TAG, "  - DTO preparado: ${pacienteDto.nome}")
+
+                val response = apiService.updatePaciente(entity.serverId!!, pacienteDto)
+
+                Log.d(TAG, "  - Response: ${response.code()} - ${response.message()}")
+
+                if (response.isSuccessful) {
+                    val responseBody = response.body()
+
+                    if (responseBody?.success == true) {
+                        pacienteDao.updateSyncStatus(entity.localId, SyncStatus.SYNCED)
+                        Log.d(TAG, "  ✅ Paciente atualizado com sucesso")
+                    } else {
+                        val errorMsg = responseBody?.error ?: "API retornou sucesso=false"
+                        Log.e(TAG, "  ❌ Falha na API: $errorMsg")
+                        pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                    }
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    Log.e(TAG, "  ❌ Erro HTTP: ${response.code()}")
+                    Log.e(TAG, "  Error body: $errorBody")
+                    pacienteDao.updateSyncStatus(entity.localId, SyncStatus.UPLOAD_FAILED)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "  💥 Exceção ao atualizar paciente ${entity.localId}", e)
+                pacienteDao.incrementSyncAttempts(entity.localId, System.currentTimeMillis(), e.message)
+            }
+        }
+
+        Log.d(TAG, "=== PROCESSAMENTO DE ATUALIZAÇÕES CONCLUÍDO ===")
+    }
+
+    // ==================== MÉTODOS DE DEBUG/MONITORAMENTO ====================
+
+    /**
+     * Método para debug - mostra status atual dos pacientes pendentes
+     */
+    suspend fun debugPacientesPendentes() {
+        try {
+            val todosPendentes = pacienteDao.getPacientesBySyncStatus(SyncStatus.PENDING_UPLOAD)
+            val novos = pacienteDao.getNovosPacientes(SyncStatus.PENDING_UPLOAD)
+            val paraAtualizar = pacienteDao.getPacientesParaAtualizar(SyncStatus.PENDING_UPLOAD)
+
+            Log.d(TAG, "=== DEBUG PACIENTES PENDENTES ===")
+            Log.d(TAG, "Total pendentes: ${todosPendentes.size}")
+            Log.d(TAG, "Novos (sem serverId): ${novos.size}")
+            Log.d(TAG, "Para atualizar (com serverId): ${paraAtualizar.size}")
+
+            Log.d(TAG, "NOVOS PACIENTES:")
+            novos.forEach { p ->
+                Log.d(TAG, "  - ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
+            }
+
+            Log.d(TAG, "PACIENTES PARA ATUALIZAR:")
+            paraAtualizar.forEach { p ->
+                Log.d(TAG, "  - ${p.nome} (localId: ${p.localId}, serverId: ${p.serverId})")
+            }
+
+            Log.d(TAG, "=== FIM DEBUG ===")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro no debug de pacientes pendentes", e)
+        }
+    }
+
+    /**
+     * Força uma tentativa de sincronização imediata com logging detalhado
+     */
+    suspend fun forceSyncWithDetailedLogging(): Result<Unit> {
+        return try {
+            Log.d(TAG, "🚀 INICIANDO SINCRONIZAÇÃO FORÇADA COM LOGGING DETALHADO")
+
+            // Debug inicial
+            debugPacientesPendentes()
+
+            // Verificar conectividade
+            Log.d(TAG, "📡 Verificando conectividade...")
+            if (!networkManager.checkConnection()) {
+                Log.e(TAG, "❌ Sem conexão com internet")
+                return Result.failure(Exception("Sem conexão com internet"))
+            }
+            Log.d(TAG, "✅ Conexão OK")
+
+            if (!networkManager.testServerConnection()) {
+                Log.e(TAG, "❌ Servidor não acessível")
+                return Result.failure(Exception("Servidor não acessível"))
+            }
+            Log.d(TAG, "✅ Servidor acessível")
+
+            // Executar sincronização
+            val result = syncAllPendingPacientes()
+
+            if (result.isSuccess) {
+                Log.d(TAG, "🎉 SINCRONIZAÇÃO CONCLUÍDA COM SUCESSO")
+            } else {
+                Log.e(TAG, "💥 SINCRONIZAÇÃO FALHOU: ${result.exceptionOrNull()?.message}")
+            }
+
+            // Debug final
+            debugPacientesPendentes()
+
+            result
+
+        } catch (e: Exception) {
+            Log.e(TAG, "💥 ERRO INESPERADO NA SINCRONIZAÇÃO FORÇADA", e)
+            Result.failure(e)
+        }
     }
 
 }

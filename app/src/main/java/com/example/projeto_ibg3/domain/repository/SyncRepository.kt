@@ -29,5 +29,8 @@ interface SyncRepository {
     suspend fun uploadPacienteEspecialidadesPending(): Result<Unit>
     suspend fun downloadPacienteEspecialidadesUpdated(): Result<Unit>
 
+    suspend fun syncPacientesUpdated(): Result<Unit>
+    suspend fun syncNovosPacientes(): Result<Unit>
+    suspend fun syncAllPendingPacientes(): Result<Unit>
 
 }
