@@ -73,4 +73,17 @@
     <color name="sync_error_light">#FFEBEE</color>
     <color name="sync_conflict_light">#F3E5F5</color>
 
+    <!-- Novas cores para estados desabilitados -->
+    <color name="lighter_gray">#F5F5F5</color>
+    <color name="darker_gray">#757575</color>
+    <color name="disabled_gray">#BDBDBD</color>
+
+    <color name="text_disabled">#61000000</color>
+    <color name="text_disabled_dark">#61FFFFFF</color>
+
+    <!-- Cores para especialidades esgotadas -->
+    <color name="gray_400">#9CA3AF</color>
+    <color name="gray_100">#F3F4F6</color>
+    <color name="gray_600">#4B5563</color>
+
 </resources>

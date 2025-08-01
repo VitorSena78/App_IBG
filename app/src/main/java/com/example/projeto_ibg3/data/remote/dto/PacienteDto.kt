@@ -6,8 +6,6 @@ data class PacienteDto(
     @SerializedName("server_id", ["id"])
     val serverId: Long? = null, // Pode ser null para novos pacientes
 
-    @SerializedName("local_id")
-    val localId: String, // Para sincronização
 
     @SerializedName("nome")
     val nome: String,

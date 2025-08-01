@@ -4,27 +4,27 @@ import com.google.gson.annotations.SerializedName
 import java.util.UUID
 
 data class EspecialidadeDto(
-    // CORRIGIDO: O servidor retorna "id", não "server_id"
-    @SerializedName("id")
+    // O servidor retorna "id", não "server_id"
+    @SerializedName("server_id", ["id"])
     val serverId: Long?,
-
-    @SerializedName("local_id")
-    val localId: String = UUID.randomUUID().toString(),
 
     @SerializedName("nome")
     val nome: String,
 
-    @SerializedName("device_id")
-    val deviceId: String? = null,
+    @SerializedName("fichas")
+    val fichas: Int? = null,
 
-    @SerializedName("last_sync_timestamp")
-    val lastSyncTimestamp: Long? = null, // Tornar opcional
+    @SerializedName("atendimentos_restantes_hoje")
+    val atendimentosRestantesHoje: Int? = null,
 
-    // CORRIGIDO: O servidor retorna datas como string ISO, não timestamp
-    @SerializedName("createdAt")
+    @SerializedName("atendimentos_totais_hoje")
+    val atendimentosTotaisHoje: Int? = null,
+
+    // O servidor retorna datas como string ISO, não timestamp
+    @SerializedName("created_at")
     val createdAt: String? = null,
 
-    @SerializedName("updatedAt")
+    @SerializedName("updated_at")
     val updatedAt: String? = null,
 
     @SerializedName("is_deleted")

@@ -9,12 +9,6 @@ data class PacienteEspecialidadeDTO(
     @SerializedName("especialidade_server_id")
     val especialidadeServerId: Long?,
 
-    @SerializedName("paciente_local_id")
-    val pacienteLocalId: String,
-
-    @SerializedName("especialidade_local_id")
-    val especialidadeLocalId: String,
-
     @SerializedName("data_atendimento")
     val dataAtendimento: String?,
 

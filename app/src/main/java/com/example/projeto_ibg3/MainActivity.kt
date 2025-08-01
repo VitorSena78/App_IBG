@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "=== FIM DO ERRO DE SINCRONIZAÇÃO ===")
             }
 
-            !syncState.isLoading && syncState.error == null -> {
+            !syncState.isLoading -> {
                 // Log de sucesso
                 Log.i(TAG, "=== SINCRONIZAÇÃO CONCLUÍDA COM SUCESSO ===")
                 Log.i(TAG, "Mensagem: ${syncState.message}")

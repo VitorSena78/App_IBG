@@ -32,8 +32,8 @@ fun PacienteEntity.toPaciente(): Paciente {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = Date(this.createdAt),
-        updatedAt = Date(this.updatedAt),
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt,
         syncStatus = this.syncStatus,
         version = this.version
     )
@@ -70,8 +70,8 @@ fun Paciente.toEntity(
         imc = this.imc ?: this.calcularImc,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.createdAt?.time ?: System.currentTimeMillis(),
-        updatedAt = this.updatedAt?.time ?: System.currentTimeMillis(),
+        createdAt = this.createdAt ?: System.currentTimeMillis(),
+        updatedAt = this.updatedAt ?: System.currentTimeMillis(),
         lastSyncTimestamp = lastSyncTimestamp,
         isDeleted = isDeleted,
         version = this.version,
@@ -83,7 +83,7 @@ fun Paciente.toEntity(
 //Converte PacienteDto para Paciente (model)
 fun PacienteDto.toPaciente(): Paciente {
     return Paciente(
-        localId = this.localId ?: UUID.randomUUID().toString(),
+        localId = UUID.randomUUID().toString(),
         serverId = this.serverId,
         nome = this.nome?.takeIf { it.isNotBlank() } ?: "Nome não informado",
         dataNascimento = parseIsoDate(this.dataNascimento),
@@ -102,8 +102,8 @@ fun PacienteDto.toPaciente(): Paciente {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = parseIsoDate(this.createdAt),
-        updatedAt = parseIsoDate(this.updatedAt),
+        createdAt = parseIsoToTimestamp(this.createdAt),
+        updatedAt = parseIsoToTimestamp(this.updatedAt),
         syncStatus = SyncStatus.SYNCED,
     )
 }
@@ -112,7 +112,6 @@ fun PacienteDto.toPaciente(): Paciente {
 fun Paciente.toDto(): PacienteDto {
     return PacienteDto(
         serverId = this.serverId,
-        localId = this.localId,
         nome = this.nome,
         dataNascimento = formatDateToIso(this.dataNascimento),
         idade = this.idade,
@@ -130,8 +129,8 @@ fun Paciente.toDto(): PacienteDto {
         peso = this.peso,
         altura = this.altura,
         imc = this.imc,
-        createdAt = this.createdAt?.let { formatTimestampToDateTime(it.time) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
-        updatedAt = this.updatedAt?.let { formatTimestampToDateTime(it.time) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
+        createdAt = this.createdAt?.let { formatTimestampToDateTime(it) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
+        updatedAt = this.updatedAt?.let { formatTimestampToDateTime(it) } ?: formatTimestampToDateTime(System.currentTimeMillis()),
         deviceId = "",
         lastSyncTimestamp = 0
     )
@@ -141,7 +140,6 @@ fun Paciente.toDto(): PacienteDto {
 fun PacienteEntity.toDto(): PacienteDto {
     return PacienteDto(
         serverId = this.serverId,
-        localId = this.localId,
         nome = this.nome,
         dataNascimento = formatTimestampToIso(this.dataNascimento),
         idade = this.idade,
@@ -168,7 +166,7 @@ fun PacienteEntity.toDto(): PacienteDto {
 
 //Converte PacienteDto para PacienteEntity
 fun PacienteDto.toEntity(
-    localId: String = this.localId,
+    localId: String = UUID.randomUUID().toString(),
     syncStatus: SyncStatus = SyncStatus.SYNCED,
     deviceId: String = this.deviceId ?: ""
 ): PacienteEntity {

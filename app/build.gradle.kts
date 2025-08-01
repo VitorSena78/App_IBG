@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.room.ktx)
     implementation(libs.play.services.nearby)
     implementation(libs.androidx.hilt.common)
+    implementation(libs.transport.runtime)
     ksp(libs.room.compiler)
 
     // Retrofit e OkHttp

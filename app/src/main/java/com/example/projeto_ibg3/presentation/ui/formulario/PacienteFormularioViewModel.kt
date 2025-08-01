@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.projeto_ibg3.data.local.database.dao.EspecialidadeDao
 import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
+import com.example.projeto_ibg3.data.remote.validation.ValidationResult
 import com.example.projeto_ibg3.data.repository.impl.SyncRepositoryImpl
+import com.example.projeto_ibg3.domain.model.EspecialidadeStats
 import com.example.projeto_ibg3.domain.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -159,7 +161,128 @@ class PacienteFormularioViewModel @Inject constructor(
     // Filtra especialidades baseado nas configurações do usuário
     fun getFilteredEspecialidades(sharedPreferences: android.content.SharedPreferences): List<EspecialidadeEntity> {
         return _especialidades.value.filter { especialidade ->
-            isEspecialidadeEnabled(especialidade.nome, sharedPreferences)
+            // Primeiro, verificar se está habilitada nas configurações
+            val isEnabled = isEspecialidadeEnabled(especialidade.nome, sharedPreferences)
+
+            // Log para debug
+            Log.d(TAG, "Especialidade ${especialidade.nome}: enabled=$isEnabled, fichas=${especialidade.fichas}, available=${especialidade.isAvailable()}")
+
+            // Retornar apenas se estiver habilitada nas configurações
+            // (independente se tem fichas ou não - isso será tratado na UI)
+            isEnabled
+        }
+    }
+
+    // método para obter apenas especialidades disponíveis (com fichas)
+    fun getEspecialidadesDisponiveis(sharedPreferences: android.content.SharedPreferences): List<EspecialidadeEntity> {
+        return getFilteredEspecialidades(sharedPreferences).filter { it.isAvailable() }
+    }
+
+    // método para obter especialidades esgotadas
+    fun getEspecialidadesEsgotadas(sharedPreferences: android.content.SharedPreferences): List<EspecialidadeEntity> {
+        return getFilteredEspecialidades(sharedPreferences).filter { it.isEsgotada() && !it.isDeleted }
+    }
+
+    // método para verificar se há especialidades disponíveis
+    fun hasEspecialidadesDisponiveis(sharedPreferences: android.content.SharedPreferences): Boolean {
+        return getEspecialidadesDisponiveis(sharedPreferences).isNotEmpty()
+    }
+
+    // Método para obter estatísticas das especialidades
+    fun getEspecialidadesStats(sharedPreferences: android.content.SharedPreferences): EspecialidadeStats {
+        val filtered = getFilteredEspecialidades(sharedPreferences)
+        return EspecialidadeStats(
+            total = filtered.size,
+            disponiveis = filtered.count { it.isAvailable() },
+            esgotadas = filtered.count { it.isEsgotada() },
+            totalFichas = filtered.sumOf { it.fichas },
+            comPoucasFichas = filtered.count { it.fichas in 1..5 }
+        )
+    }
+
+    // NOVO: Método para obter especialidades com poucas fichas (aviso)
+    fun getEspecialidadesComPoucasFichas(sharedPreferences: android.content.SharedPreferences, limite: Int = 5): List<EspecialidadeEntity> {
+        return getFilteredEspecialidades(sharedPreferences).filter {
+            it.fichas in 1..limite && !it.isDeleted
+        }
+    }
+
+    // NOVO: Método para verificar se uma especialidade específica está disponível
+    fun isEspecialidadeDisponivel(nomeEspecialidade: String, sharedPreferences: android.content.SharedPreferences): Boolean {
+        val especialidade = _especialidades.value.find { it.nome == nomeEspecialidade }
+        return especialidade?.let {
+            isEspecialidadeEnabled(it.nome, sharedPreferences) && it.isAvailable()
+        } ?: false
+    }
+
+    // NOVO: Método para obter informações detalhadas de uma especialidade
+    fun getEspecialidadeInfo(nomeEspecialidade: String): EspecialidadeEntity? {
+        return _especialidades.value.find { it.nome == nomeEspecialidade }
+    }
+
+    // NOVO: Método para validar se as especialidades selecionadas ainda estão disponíveis
+    fun validateSelectedEspecialidades(
+        selectedEspecialidades: List<String>,
+        sharedPreferences: android.content.SharedPreferences
+    ): ValidationResult {
+        val unavailableEspecialidades = mutableListOf<String>()
+        val warningEspecialidades = mutableListOf<String>()
+
+        selectedEspecialidades.forEach { nome ->
+            val especialidade = getEspecialidadeInfo(nome)
+            when {
+                especialidade == null -> unavailableEspecialidades.add(nome)
+                !especialidade.isAvailable() -> unavailableEspecialidades.add(nome)
+                especialidade.fichas <= 5 -> warningEspecialidades.add("$nome (${especialidade.fichas} fichas restantes)")
+            }
+        }
+
+        return ValidationResult(
+            isValid = unavailableEspecialidades.isEmpty(),
+            unavailableEspecialidades = unavailableEspecialidades,
+            warningEspecialidades = warningEspecialidades
+        )
+    }
+
+    // NOVO: Método para decrementar fichas localmente (para feedback imediato)
+    fun decrementarFichasLocalmente(nomeEspecialidade: String) {
+        viewModelScope.launch {
+            try {
+                val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
+                if (especialidade != null && especialidade.fichas > 0) {
+                    especialidadeDao.updateFichas(
+                        especialidade.localId,
+                        especialidade.fichas - 1
+                    )
+                    Log.d(TAG, "Fichas decrementadas localmente para $nomeEspecialidade: ${especialidade.fichas - 1}")
+
+                    // Recarregar especialidades para atualizar a UI
+                    loadEspecialidades()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao decrementar fichas localmente", e)
+            }
+        }
+    }
+
+    // NOVO: Método para incrementar fichas localmente
+    fun incrementarFichasLocalmente(nomeEspecialidade: String) {
+        viewModelScope.launch {
+            try {
+                val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
+                if (especialidade != null) {
+                    especialidadeDao.updateFichas(
+                        especialidade.localId,
+                        especialidade.fichas + 1
+                    )
+                    Log.d(TAG, "Fichas incrementadas localmente para $nomeEspecialidade: ${especialidade.fichas + 1}")
+
+                    // Recarregar especialidades para atualizar a UI
+                    loadEspecialidades()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao incrementar fichas localmente", e)
+            }
         }
     }
 
@@ -259,53 +382,6 @@ class PacienteFormularioViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "💥 Exceção na sincronização forçada", e)
                 _errorMessage.value = "Erro na sincronização: ${e.message}"
-            }
-        }
-    }
-
-    /**
-     * Método de debug para verificar pacientes pendentes
-     */
-    fun debugPacientesPendentes() {
-        viewModelScope.launch {
-            try {
-                // Se seu SyncRepositoryImpl tiver o método debugPacientesPendentes
-                if (syncRepository is SyncRepositoryImpl) {
-                    syncRepository.debugPacientesPendentes()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Erro no debug", e)
-            }
-        }
-    }
-
-    /**
-     * Método para teste de sincronização com logging detalhado
-     */
-    fun testSyncWithDetailedLogging() {
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "🧪 Iniciando teste de sincronização com logging detalhado...")
-
-                // Se seu SyncRepositoryImpl tiver o método forceSyncWithDetailedLogging
-                if (syncRepository is SyncRepositoryImpl) {
-                    val result = syncRepository.forceSyncWithDetailedLogging()
-
-                    if (result.isSuccess) {
-                        Log.d(TAG, "✅ Teste de sincronização concluído com sucesso")
-                        _errorMessage.value = null // Limpar erro anterior
-                    } else {
-                        val error = result.exceptionOrNull()?.message ?: "Erro desconhecido"
-                        Log.e(TAG, "❌ Teste de sincronização falhou: $error")
-                        _errorMessage.value = "Teste falhou: $error"
-                    }
-                } else {
-                    Log.w(TAG, "⚠️ Método de teste não disponível para este tipo de repository")
-                }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "💥 Exceção no teste de sincronização", e)
-                _errorMessage.value = "Erro do teste: ${e.message}"
             }
         }
     }

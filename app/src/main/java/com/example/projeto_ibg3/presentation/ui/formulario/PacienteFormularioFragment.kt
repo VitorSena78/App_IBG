@@ -32,8 +32,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
+import com.example.projeto_ibg3.data.remote.validation.ValidationResult
+import androidx.core.content.edit
 
 @AndroidEntryPoint
 class PacienteFormularioFragment : Fragment() {
@@ -188,9 +188,29 @@ class PacienteFormularioFragment : Fragment() {
     private fun markEspecialidadeAsSelected(especialidade: String) {
         for (i in 0 until chipGroupEspecialidades.childCount) {
             val chip = chipGroupEspecialidades.getChildAt(i) as Chip
-            if (chip.text.toString() == especialidade) {
-                chip.isChecked = true
-                Log.d("PacienteForm", "Especialidade marcada: $especialidade")
+
+            // Verificar se o chip corresponde à especialidade (removendo a parte das fichas)
+            val chipText = chip.text.toString()
+            val especialidadeNome = if (chipText.contains("(")) {
+                chipText.substring(0, chipText.indexOf("(")).trim()
+            } else {
+                chipText
+            }
+
+            if (especialidadeNome == especialidade) {
+                // Só marcar se o chip estiver habilitado (especialidade disponível)
+                if (chip.isEnabled) {
+                    chip.isChecked = true
+                    Log.d("PacienteForm", "Especialidade marcada: $especialidade")
+                } else {
+                    Log.w("PacienteForm", "Tentativa de marcar especialidade esgotada: $especialidade")
+                    // Opcional: Mostrar toast informando que a especialidade não está mais disponível
+                    Toast.makeText(
+                        requireContext(),
+                        "A especialidade '$especialidade' não está mais disponível",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
                 break
             }
         }
@@ -301,7 +321,7 @@ class PacienteFormularioFragment : Fragment() {
 
     private suspend fun updateEspecialidadesRelationships(pacienteId: String, especialidadesSelecionadas: List<String>) {
         try {
-            Log.d("PacienteForm", "=== INICIANDO ATUALIZAÇÃO DE RELACIONAMENTOS ===")
+            Log.d("PacienteForm", "=== INICIANDO ATUALIZAÇÃO DE RELACIONAMENTOS COM CONTROLE DE FICHAS ===")
             Log.d("PacienteForm", "Paciente ID: $pacienteId")
             Log.d("PacienteForm", "Especialidades selecionadas: $especialidadesSelecionadas")
 
@@ -322,77 +342,95 @@ class PacienteFormularioFragment : Fragment() {
             Log.d("PacienteForm", "Para remover: $especialidadesParaRemover")
             Log.d("PacienteForm", "Para adicionar: $especialidadesParaAdicionar")
 
-            // 4. REMOVER relacionamentos (usando SOFT DELETE)
+            // 4. REMOVER relacionamentos (usando controle de fichas)
             especialidadesParaRemover.forEach { nomeEspecialidade ->
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
                 if (especialidade != null) {
-                    // USAR SOFT DELETE ao invés de deleção física
-                    pacienteEspecialidadeDao.markAsDeleted(
+                    // USAR MÉTODO COM CONTROLE DE FICHAS
+                    pacienteEspecialidadeDao.deleteWithFichasControl(
                         pacienteLocalId = pacienteId,
-                        especialidadeLocalId = especialidade.localId,
-                        status = SyncStatus.PENDING_DELETE,
-                        timestamp = System.currentTimeMillis()
+                        especialidadeLocalId = especialidade.localId
                     )
-                    Log.d("PacienteForm", "✅ Relacionamento marcado para DELEÇÃO: Paciente $pacienteId - Especialidade ${especialidade.nome} (${especialidade.localId})")
+
+                    // Log das fichas após remoção
+                    val fichasAtuais = especialidadeDao.getFichasCount(especialidade.localId)
+                    Log.d("PacienteForm", "✅ Relacionamento removido com incremento de fichas: ${especialidade.nome} agora tem $fichasAtuais fichas")
                 }
             }
 
-            // 5. ADICIONAR novos relacionamentos
+            // 5. ADICIONAR novos relacionamentos (com validação de fichas)
             especialidadesParaAdicionar.forEach { nomeEspecialidade ->
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                 if (especialidade != null) {
+                    // VERIFICAR SE TEM FICHAS DISPONÍVEIS
+                    val fichasDisponiveis = especialidadeDao.getFichasCount(especialidade.localId)
+
+                    if (fichasDisponiveis <= 0) {
+                        Log.w("PacienteForm", "⚠️ Tentativa de adicionar especialidade esgotada: ${especialidade.nome}")
+
+                        // Mostrar aviso na UI
+                        requireActivity().runOnUiThread {
+                            Toast.makeText(
+                                requireContext(),
+                                "A especialidade '${especialidade.nome}' não está mais disponível",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        return@forEach
+                    }
+
                     // Verificar se já existe um relacionamento (mesmo que deletado)
                     val relacionamentoExistente = pacienteEspecialidadeDao.getById(pacienteId, especialidade.localId)
 
                     if (relacionamentoExistente != null && relacionamentoExistente.isDeleted) {
-                        // Se existe mas está deletado, restaurar
-                        pacienteEspecialidadeDao.restore(
+                        // Se existe mas está deletado, restaurar COM CONTROLE DE FICHAS
+                        pacienteEspecialidadeDao.restoreWithFichasControl(
                             pacienteLocalId = pacienteId,
                             especialidadeLocalId = especialidade.localId,
                             timestamp = System.currentTimeMillis()
                         )
-                        Log.d("PacienteForm", "✅ Relacionamento RESTAURADO: Paciente $pacienteId - Especialidade ${especialidade.nome}")
+
+                        val fichasRestantes = especialidadeDao.getFichasCount(especialidade.localId)
+                        Log.d("PacienteForm", "✅ Relacionamento RESTAURADO com controle de fichas: ${especialidade.nome} agora tem $fichasRestantes fichas")
+
                     } else if (relacionamentoExistente == null) {
-                        // Se não existe, criar novo
+                        // Se não existe, criar novo COM CONTROLE DE FICHAS
                         val novoRelacionamento = PacienteEspecialidadeEntity(
                             pacienteLocalId = pacienteId,
                             especialidadeLocalId = especialidade.localId,
                             dataAtendimento = System.currentTimeMillis(),
-                            syncStatus = SyncStatus.PENDING_UPLOAD, // MARCAR PARA SINCRONIZAÇÃO
+                            syncStatus = SyncStatus.PENDING_UPLOAD,
                             isDeleted = false,
                             createdAt = System.currentTimeMillis(),
                             updatedAt = System.currentTimeMillis()
                         )
 
-                        pacienteEspecialidadeDao.insert(novoRelacionamento)
-                        Log.d("PacienteForm", "✅ Novo relacionamento CRIADO: Paciente $pacienteId - Especialidade ${especialidade.nome} (${especialidade.localId})")
+                        pacienteEspecialidadeDao.insertWithFichasControl(novoRelacionamento)
+
+                        val fichasRestantes = especialidadeDao.getFichasCount(especialidade.localId)
+                        Log.d("PacienteForm", "✅ Novo relacionamento CRIADO com controle de fichas: ${especialidade.nome} agora tem $fichasRestantes fichas")
+
                     } else {
-                        Log.d("PacienteForm", "⚪ Relacionamento já existe e está ativo: Paciente $pacienteId - Especialidade ${especialidade.nome}")
+                        Log.d("PacienteForm", "⚪ Relacionamento já existe e está ativo: ${especialidade.nome}")
                     }
                 } else {
                     Log.w("PacienteForm", "⚠️ Especialidade não encontrada: $nomeEspecialidade")
                 }
             }
 
-            // 6. Verificar resultado final
+            // 6. NOVO: Recarregar especialidades para atualizar a UI
+            viewModel.refreshEspecialidades()
+
+            // 7. Verificar resultado final
             val relacionamentosFinais = pacienteEspecialidadeDao.getByPacienteId(pacienteId)
             Log.d("PacienteForm", "=== RESULTADO FINAL ===")
             Log.d("PacienteForm", "Total de relacionamentos ativos: ${relacionamentosFinais.size}")
 
             relacionamentosFinais.forEach { rel ->
                 val esp = especialidadeDao.getEspecialidadeById(rel.especialidadeLocalId)
-                Log.d("PacienteForm", "  - ${esp?.nome} (status: ${rel.syncStatus}, deleted: ${rel.isDeleted})")
-            }
-
-            // 7. Log dos relacionamentos pendentes para sincronização
-            val relacionamentosPendentes = pacienteEspecialidadeDao.getPendingSync()
-            Log.d("PacienteForm", "Relacionamentos pendentes para sincronização: ${relacionamentosPendentes.size}")
-
-            relacionamentosPendentes.forEach { rel ->
-                val pac = pacienteDao.getPacienteById(rel.pacienteLocalId)
-                val esp = especialidadeDao.getEspecialidadeById(rel.especialidadeLocalId)
-                Log.d("PacienteForm", "  PENDENTE: ${pac?.nome} -> ${esp?.nome} (status: ${rel.syncStatus})")
+                val fichas = esp?.let { especialidadeDao.getFichasCount(it.localId) } ?: 0
+                Log.d("PacienteForm", "  - ${esp?.nome} (${fichas} fichas restantes, status: ${rel.syncStatus})")
             }
 
             Log.d("PacienteForm", "=== ATUALIZAÇÃO DE RELACIONAMENTOS CONCLUÍDA ===")
@@ -400,6 +438,52 @@ class PacienteFormularioFragment : Fragment() {
         } catch (e: Exception) {
             Log.e("PacienteForm", "Erro ao atualizar relacionamentos com especialidades", e)
             throw e
+        }
+    }
+
+    // NOVO: Método para validar especialidades antes de salvar
+    private suspend fun validateEspecialidadesDisponibilidade(especialidadesSelecionadas: List<String>): ValidationResult {
+        val indisponiveis = mutableListOf<String>()
+        val avisos = mutableListOf<String>()
+
+        especialidadesSelecionadas.forEach { nome ->
+            val especialidade = especialidadeDao.getEspecialidadeByName(nome)
+            if (especialidade != null) {
+                val fichas = especialidadeDao.getFichasCount(especialidade.localId)
+                when {
+                    fichas <= 0 -> indisponiveis.add(nome)
+                    fichas <= 3 -> avisos.add("$nome (apenas $fichas fichas restantes)")
+                }
+            } else {
+                indisponiveis.add("$nome (não encontrada)")
+            }
+        }
+
+        return ValidationResult(
+            isValid = indisponiveis.isEmpty(),
+            unavailableEspecialidades = indisponiveis,
+            warningEspecialidades = avisos
+        )
+    }
+
+    // NOVO: Método para mostrar validação na UI
+    private suspend fun showValidationResults(validationResult: ValidationResult) {
+        if (!validationResult.isValid) {
+            val message = "Especialidades indisponíveis: ${validationResult.unavailableEspecialidades.joinToString(", ")}"
+
+            requireActivity().runOnUiThread {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+                showEspecialidadesError(message)
+            }
+            return
+        }
+
+        if (validationResult.warningEspecialidades.isNotEmpty()) {
+            val message = "Atenção: ${validationResult.warningEspecialidades.joinToString(", ")}"
+
+            requireActivity().runOnUiThread {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -436,9 +520,9 @@ class PacienteFormularioFragment : Fragment() {
             deviceId = "${android.os.Build.MODEL}_${android.os.Build.SERIAL}".take(50)
 
             // Salvar para uso futuro
-            sharedPreferences.edit()
-                .putString("device_id", deviceId)
-                .apply()
+            sharedPreferences.edit {
+                putString("device_id", deviceId)
+            }
         }
 
         return deviceId
@@ -494,33 +578,99 @@ class PacienteFormularioFragment : Fragment() {
 
         Log.d("PacienteForm", "Criando chips para ${filteredEspecialidades.size} especialidades")
 
-        filteredEspecialidades.forEach { especialidade ->
-            val chip = createEspecialidadeChip(especialidade.nome)
+        // Separar especialidades disponíveis e esgotadas
+        val especialidadesDisponiveis = filteredEspecialidades.filter { it.isAvailable() }
+        val especialidadesEsgotadas = filteredEspecialidades.filter { it.isEsgotada() && !it.isDeleted }
+
+        Log.d("PacienteForm", "Disponíveis: ${especialidadesDisponiveis.size}, Esgotadas: ${especialidadesEsgotadas.size}")
+
+        // Primeiro adicionar as disponíveis
+        especialidadesDisponiveis.forEach { especialidade ->
+            val chip = createEspecialidadeChip(especialidade.nome, especialidade.fichas, true)
             chipGroupEspecialidades.addView(chip)
-            Log.d("PacienteForm", "Chip criado para: ${especialidade.nome}")
+            Log.d("PacienteForm", "Chip criado (disponível): ${especialidade.nome} (${especialidade.fichas} fichas)")
+        }
+
+        // Depois adicionar as esgotadas (desabilitadas)
+        especialidadesEsgotadas.forEach { especialidade ->
+            val chip = createEspecialidadeChip(especialidade.nome, especialidade.fichas, false)
+            chipGroupEspecialidades.addView(chip)
+            Log.d("PacienteForm", "Chip criado (esgotado): ${especialidade.nome} (${especialidade.fichas} fichas)")
         }
 
         // Se estiver em modo de edição, recarregar as especialidades selecionadas
         if (isEditMode && currentPaciente != null) {
             loadPacienteEspecialidades()
         }
+
+        // Mostrar aviso se não há especialidades disponíveis
+        if (especialidadesDisponiveis.isEmpty()) {
+            showEspecialidadesWarning("Todas as especialidades estão esgotadas no momento")
+        } else {
+            hideEspecialidadesWarning()
+        }
     }
 
-    private fun createEspecialidadeChip(especialidade: String): Chip {
+    // Novos métodos auxiliares para avisos
+    private fun showEspecialidadesWarning(message: String) {
+        // Se você tiver um TextView para avisos na UI
+        binding.tvEspecialidadesWarning?.let {
+            it.text = message
+            it.visibility = View.VISIBLE
+            it.setTextColor(ContextCompat.getColor(requireContext(), R.color.warning))
+        }
+    }
+
+    private fun hideEspecialidadesWarning() {
+        binding.tvEspecialidadesWarning?.visibility = View.GONE
+    }
+
+    private fun createEspecialidadeChip(especialidade: String, fichas: Int, isAvailable: Boolean): Chip {
         val chip = Chip(requireContext())
         chip.apply {
-            text = especialidade
+            // Texto do chip com informação das fichas
+            text = if (isAvailable) {
+                "$especialidade ($fichas)"
+            } else {
+                "$especialidade (ESGOTADA)"
+            }
+
             isCheckable = true
             isChecked = false
 
-            chipCornerRadius = 32f
-            chipStrokeWidth = 4f
-            chipStrokeColor = ContextCompat.getColorStateList(requireContext(), R.color.primary)
-            chipBackgroundColor = ContextCompat.getColorStateList(requireContext(), R.color.white)
-            setTextColor(ContextCompat.getColorStateList(requireContext(), R.color.primary))
+            // Configuração visual baseada na disponibilidade
+            if (isAvailable) {
+                // Especialidade disponível - comportamento normal
+                isEnabled = true
+                chipCornerRadius = 32f
+                chipStrokeWidth = 4f
+                chipStrokeColor = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+                chipBackgroundColor = ContextCompat.getColorStateList(requireContext(), R.color.white)
+                setTextColor(ContextCompat.getColorStateList(requireContext(), R.color.primary))
+                alpha = 1.0f
 
-            setOnCheckedChangeListener { _, _ ->
-                hideEspecialidadesError()
+                setOnCheckedChangeListener { _, _ ->
+                    hideEspecialidadesError()
+                }
+            } else {
+                // Especialidade esgotada - desabilitada
+                isEnabled = false
+                isCheckable = false
+                chipCornerRadius = 32f
+                chipStrokeWidth = 2f
+                chipStrokeColor = ContextCompat.getColorStateList(requireContext(), R.color.gray_400)
+                chipBackgroundColor = ContextCompat.getColorStateList(requireContext(), R.color.gray_100)
+                setTextColor(ContextCompat.getColorStateList(requireContext(), R.color.gray_600))
+                alpha = 0.6f
+
+                // Adicionar um listener para mostrar mensagem quando tentar clicar
+                setOnClickListener {
+                    Toast.makeText(
+                        requireContext(),
+                        "Esta especialidade está esgotada no momento",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
         return chip
@@ -749,14 +899,41 @@ class PacienteFormularioFragment : Fragment() {
                 val especialidade = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                 if (especialidade != null) {
+                    // NOVO: Verificar se a especialidade ainda tem fichas disponíveis
+                    val fichasDisponiveis = especialidadeDao.getFichasCount(especialidade.localId)
+
+                    if (fichasDisponiveis <= 0) {
+                        Log.w("PacienteForm", "⚠️ Especialidade ${especialidade.nome} está esgotada (${fichasDisponiveis} fichas)")
+
+                        // Mostrar aviso na UI
+                        requireActivity().runOnUiThread {
+                            Toast.makeText(
+                                requireContext(),
+                                "A especialidade '${especialidade.nome}' ficou esgotada",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        return@forEach
+                    }
+
+                    Log.d("PacienteForm", "Especialidade ${especialidade.nome} tem $fichasDisponiveis fichas disponíveis")
+
                     val pacienteEspecialidade = PacienteEspecialidadeEntity(
                         pacienteLocalId = pacienteId,
-                        especialidadeLocalId = especialidade.localId, // Usar localId
-                        dataAtendimento = System.currentTimeMillis()
+                        especialidadeLocalId = especialidade.localId,
+                        dataAtendimento = System.currentTimeMillis(),
+                        syncStatus = SyncStatus.PENDING_UPLOAD
                     )
 
-                    pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
-                    Log.d("PacienteForm", "Relacionamento salvo: Paciente $pacienteId - Especialidade ${especialidade.localId}")
+                    // USAR O MÉTODO COM CONTROLE DE FICHAS
+                    pacienteEspecialidadeDao.insertWithFichasControl(pacienteEspecialidade)
+
+                    Log.d("PacienteForm", "✅ Relacionamento salvo com controle de fichas: Paciente $pacienteId - Especialidade ${especialidade.localId}")
+
+                    // Log das fichas após a operação
+                    val fichasRestantes = especialidadeDao.getFichasCount(especialidade.localId)
+                    Log.d("PacienteForm", "Fichas restantes para ${especialidade.nome}: $fichasRestantes")
+
                 } else {
                     Log.w("PacienteForm", "Especialidade não encontrada: $nomeEspecialidade")
 
@@ -769,19 +946,31 @@ class PacienteFormularioFragment : Fragment() {
                     val especialidadeRetry = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                     if (especialidadeRetry != null) {
-                        val pacienteEspecialidade = PacienteEspecialidadeEntity(
-                            pacienteLocalId = pacienteId,
-                            especialidadeLocalId = especialidadeRetry.localId,
-                            dataAtendimento = System.currentTimeMillis()
-                        )
+                        // Verificar fichas novamente
+                        val fichasDisponiveis = especialidadeDao.getFichasCount(especialidadeRetry.localId)
 
-                        pacienteEspecialidadeDao.insertPacienteEspecialidade(pacienteEspecialidade)
-                        Log.d("PacienteForm", "Relacionamento salvo na segunda tentativa: Paciente $pacienteId - Especialidade ${especialidadeRetry.localId} (${especialidadeRetry.nome})")
+                        if (fichasDisponiveis > 0) {
+                            val pacienteEspecialidade = PacienteEspecialidadeEntity(
+                                pacienteLocalId = pacienteId,
+                                especialidadeLocalId = especialidadeRetry.localId,
+                                dataAtendimento = System.currentTimeMillis(),
+                                syncStatus = SyncStatus.PENDING_UPLOAD
+                            )
+
+                            pacienteEspecialidadeDao.insertWithFichasControl(pacienteEspecialidade)
+                            Log.d("PacienteForm", "✅ Relacionamento salvo na segunda tentativa com controle de fichas: Paciente $pacienteId - Especialidade ${especialidadeRetry.localId} (${especialidadeRetry.nome})")
+                        } else {
+                            Log.w("PacienteForm", "Especialidade ${especialidadeRetry.nome} esgotada na segunda tentativa")
+                        }
                     } else {
                         Log.e("PacienteForm", "Especialidade ainda não encontrada após refresh: $nomeEspecialidade")
                     }
                 }
             }
+
+            // NOVO: Recarregar especialidades na UI para refletir mudanças nas fichas
+            viewModel.refreshEspecialidades()
+
         } catch (e: Exception) {
             Log.e("PacienteForm", "Erro ao salvar relacionamentos com especialidades", e)
             throw e
@@ -873,8 +1062,15 @@ class PacienteFormularioFragment : Fragment() {
 
         for (i in 0 until chipGroupEspecialidades.childCount) {
             val chip = chipGroupEspecialidades.getChildAt(i) as Chip
-            if (chip.isChecked) {
-                selectedEspecialidades.add(chip.text.toString())
+            if (chip.isChecked && chip.isEnabled) { // Só considerar se estiver marcado E habilitado
+                // Extrair apenas o nome da especialidade (sem a parte das fichas)
+                val chipText = chip.text.toString()
+                val especialidadeNome = if (chipText.contains("(")) {
+                    chipText.substring(0, chipText.indexOf("(")).trim()
+                } else {
+                    chipText
+                }
+                selectedEspecialidades.add(especialidadeNome)
             }
         }
 
@@ -906,7 +1102,14 @@ class PacienteFormularioFragment : Fragment() {
 
         val selectedEspecialidades = getSelectedEspecialidades()
         if (selectedEspecialidades.isEmpty()) {
-            showEspecialidadesError("Selecione pelo menos uma especialidade")
+            // Verificar se há especialidades disponíveis
+            val hasAvailableEspecialidades = viewModel.hasEspecialidadesDisponiveis(sharedPreferences)
+
+            if (hasAvailableEspecialidades) {
+                showEspecialidadesError("Selecione pelo menos uma especialidade")
+            } else {
+                showEspecialidadesError("Não há especialidades disponíveis no momento")
+            }
             isValid = false
         } else {
             hideEspecialidadesError()
@@ -915,10 +1118,6 @@ class PacienteFormularioFragment : Fragment() {
         return isValid
     }
 
-    fun refreshEspecialidades() {
-        Log.d("PacienteForm", "Solicitando refresh das especialidades")
-        viewModel.refreshEspecialidades()
-    }
 
     override fun onDestroyView() {
         // Cancelar qualquer operação de validação pendente

@@ -4,6 +4,7 @@ import com.example.projeto_ibg3.data.local.database.entities.EspecialidadeEntity
 import com.example.projeto_ibg3.data.remote.dto.EspecialidadeDto
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.domain.model.Especialidade
+import java.util.Date
 import java.util.UUID
 
 //EspecialidadeMapper.kt
@@ -17,7 +18,13 @@ fun EspecialidadeEntity.toDomainModel(): Especialidade {
     return Especialidade(
         localId = this.localId,
         serverId = this.serverId,
-        nome = this.nome
+        nome = this.nome,
+        fichas = this.fichas, // NOVO CAMPO
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje,
+        isDeleted = this.isDeleted,
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt
     )
 }
 
@@ -25,30 +32,34 @@ fun EspecialidadeEntity.toDomainModel(): Especialidade {
 fun Especialidade.toEntity(
     deviceId: String,
     syncStatus: SyncStatus = SyncStatus.PENDING_UPLOAD,
-    createdAt: Long = System.currentTimeMillis(),
-    updatedAt: Long = System.currentTimeMillis(),
-    lastSyncTimestamp: Long = 0,
-    isDeleted: Boolean = false
+    lastSyncTimestamp: Long = 0
 ): EspecialidadeEntity {
     return EspecialidadeEntity(
         localId = this.localId,
         serverId = this.serverId,
         nome = this.nome,
+        fichas = this.fichas, // NOVO CAMPO
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt,
         lastSyncTimestamp = lastSyncTimestamp,
-        isDeleted = isDeleted
+        isDeleted = this.isDeleted
     )
 }
 
 // DTO para Domain Model - CORRIGIDO
 fun EspecialidadeDto.toDomain(): Especialidade {
     return Especialidade(
-        localId = this.localId,
+        localId = UUID.randomUUID().toString(),
         serverId = this.serverId, // Agora mapeia corretamente para "id" do JSON
-        nome = this.nome
+        nome = this.nome,
+        fichas = this.fichas ?: 0,
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje ?: 0,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje ?: 0,
+        isDeleted = this.isDeleted ?: false
     )
 }
 
@@ -61,20 +72,18 @@ fun EspecialidadeDto.toEntity(
     deviceId: String,
     syncStatus: SyncStatus = SyncStatus.SYNCED
 ): EspecialidadeEntity {
-    val validLocalId = if (this.localId.isNullOrBlank()) {
-        UUID.randomUUID().toString()
-    } else {
-        this.localId
-    }
+
     return EspecialidadeEntity(
-        localId = validLocalId,
-        serverId = this.serverId, // Agora mapeia corretamente
+        localId = UUID.randomUUID().toString(),
+        serverId = this.serverId,
         nome = this.nome,
+        fichas = this.fichas ?: 0,
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje ?: 0,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje ?: 0,
         syncStatus = syncStatus,
         deviceId = deviceId,
-        createdAt = this.getCreatedAtTimestamp(), // CORRIGIDO: converter data ISO
-        updatedAt = this.getUpdatedAtTimestamp(), // CORRIGIDO: converter data ISO
-        lastSyncTimestamp = this.lastSyncTimestamp ?: System.currentTimeMillis(),
+        createdAt = this.getCreatedAtTimestamp(),
+        updatedAt = this.getUpdatedAtTimestamp(),
         isDeleted = this.isDeleted ?: false
     )
 }
@@ -83,12 +92,12 @@ fun EspecialidadeDto.toEntity(
 fun EspecialidadeEntity.toDto(): EspecialidadeDto {
     return EspecialidadeDto(
         serverId = this.serverId, // Mapeia corretamente
-        localId = this.localId,
         nome = this.nome,
-        deviceId = this.deviceId,
-        lastSyncTimestamp = this.lastSyncTimestamp,
-        createdAt = null, // Converter timestamp para ISO se necessário
-        updatedAt = null, // Converter timestamp para ISO se necessário
+        fichas = this.fichas,
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje,
+        createdAt = dateTimeFormat.format(Date(this.createdAt)),
+        updatedAt = dateTimeFormat.format(Date(this.updatedAt)),
         isDeleted = this.isDeleted
     )
 }
@@ -114,9 +123,13 @@ fun List<EspecialidadeEntity>.toDomain(): List<Especialidade> {
 // Converter DTO para Domain Model - CORRIGIDO
 fun EspecialidadeDto.toDomainModel(): Especialidade {
     return Especialidade(
-        localId = this.localId,
+        localId = UUID.randomUUID().toString(),
         serverId = this.serverId, // Agora mapeia corretamente
-        nome = this.nome
+        nome = this.nome,
+        fichas = this.fichas ?: 0,
+        atendimentosRestantesHoje = this.atendimentosRestantesHoje ?: 0,
+        atendimentosTotaisHoje = this.atendimentosTotaisHoje ?: 0,
+        isDeleted = this.isDeleted ?: false
     )
 }
 
@@ -130,10 +143,7 @@ fun Especialidade.toDto(
 ): EspecialidadeDto {
     return EspecialidadeDto(
         serverId = this.serverId, // Mapeia corretamente
-        localId = this.localId,
         nome = this.nome,
-        deviceId = deviceId,
-        lastSyncTimestamp = lastSyncTimestamp,
         createdAt = null, // Converter timestamp para ISO se necessário
         updatedAt = null, // Converter timestamp para ISO se necessário
         isDeleted = isDeleted

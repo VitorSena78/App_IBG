@@ -16,6 +16,8 @@ import com.example.projeto_ibg3.databinding.FragmentConfigBinding
 import com.example.projeto_ibg3.domain.model.Especialidade
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
+import com.example.projeto_ibg3.R
 
 @AndroidEntryPoint
 class ConfigFragment : Fragment() {
@@ -76,24 +78,53 @@ class ConfigFragment : Fragment() {
         } else {
             val especialidadesToShow = especialidades.map { it.nome }
             especialidadesToShow.forEach { nomeEspecialidade ->
-                val switch = createSwitch(nomeEspecialidade)
+                // Encontrar a especialidade completa para verificar fichas
+                val especialidadeCompleta = especialidades.find { it.nome == nomeEspecialidade }
+                val switch = createSwitch(nomeEspecialidade, especialidadeCompleta)
                 binding.containerSwitches.addView(switch)
             }
         }
-
-
     }
 
-    private fun createSwitch(nomeEspecialidade: String): SwitchCompat {
+    private fun createSwitch(nomeEspecialidade: String, especialidade: Especialidade?): SwitchCompat {
         return SwitchCompat(requireContext()).apply {
-            text = nomeEspecialidade
-            val prefsKey = "especialidade_${nomeEspecialidade.lowercase().replace(" ", "_")}"
-            isChecked = sharedPreferences.getBoolean(prefsKey, true)
+            // Verificar se a especialidade tem fichas disponíveis
+            val temFichas = especialidade?.let { it.fichas > 0 } ?: true
+            val fichasDisponiveis = especialidade?.fichas ?: 0
 
-            setOnCheckedChangeListener { _, isChecked ->
+            // Texto do switch com informação das fichas
+            text = if (temFichas) {
+                "$nomeEspecialidade ($fichasDisponiveis fichas)"
+            } else {
+                "$nomeEspecialidade (ESGOTADA)"
+            }
+
+            val prefsKey = "especialidade_${nomeEspecialidade.lowercase().replace(" ", "_")}"
+
+            // Se não tem fichas, forçar o switch como desabilitado e desmarcado
+            if (!temFichas) {
+                isChecked = false
+                isEnabled = false
+                // Salvar como desabilitado nas preferências
                 sharedPreferences.edit()
-                    .putBoolean(prefsKey, isChecked)
+                    .putBoolean(prefsKey, false)
                     .apply()
+
+                // Estilo visual para indicar que está esgotado
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_disabled))
+                alpha = 0.6f
+            } else {
+                // Comportamento normal para especialidades com fichas
+                isChecked = sharedPreferences.getBoolean(prefsKey, true)
+                isEnabled = true
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
+                alpha = 1.0f
+
+                setOnCheckedChangeListener { _, isChecked ->
+                    sharedPreferences.edit()
+                        .putBoolean(prefsKey, isChecked)
+                        .apply()
+                }
             }
 
             // Styling

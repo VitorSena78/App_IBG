@@ -74,10 +74,10 @@ class EspecialidadeRepositoryImpl @Inject constructor(
         return especialidadeDao.getPendingSyncItems()
     }
 
-    override suspend fun updateSyncStatus(localId: String, newStatus: SyncStatus) {
+    override suspend fun updateSyncStatus(localId: String, status: SyncStatus) {
         especialidadeDao.updateSyncStatus(
             localId = localId,
-            newStatus = newStatus,
+            newStatus = status,
             timestamp = System.currentTimeMillis()
         )
     }

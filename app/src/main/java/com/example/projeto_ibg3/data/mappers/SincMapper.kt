@@ -13,6 +13,7 @@ import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.domain.model.PacienteEspecialidade
 import com.example.projeto_ibg3.domain.model.Especialidade
 import com.example.projeto_ibg3.domain.model.SyncStatus
+import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -50,8 +51,6 @@ fun PacienteEspecialidadeEntity.toPacienteEspecialidadeDto(): PacienteEspecialid
     return PacienteEspecialidadeDTO(
         pacienteServerId = this.pacienteServerId,
         especialidadeServerId = this.especialidadeServerId,
-        pacienteLocalId = this.pacienteLocalId,
-        especialidadeLocalId = this.especialidadeLocalId,
         dataAtendimento = this.dataAtendimento?.toDateString(),
         createdAt = this.createdAt.toDateTimeString(),
         updatedAt = this.updatedAt.toDateTimeString(),
@@ -67,12 +66,14 @@ fun PacienteEspecialidadeEntity.toPacienteEspecialidadeDto(): PacienteEspecialid
 
 // Versão alternativa que cria com os IDs do DTO (caso você queira manter)
 fun PacienteEspecialidadeDTO.toPacienteEspecialidadeEntity(
+    pacienteLocalId: String,
+    especialidadeLocalId: String,
     deviceId: String = "",
     syncStatus: SyncStatus = SyncStatus.SYNCED
 ): PacienteEspecialidadeEntity {
     return PacienteEspecialidadeEntity(
-        pacienteLocalId = this.pacienteLocalId,
-        especialidadeLocalId = this.especialidadeLocalId,
+        pacienteLocalId = pacienteLocalId,
+        especialidadeLocalId = especialidadeLocalId,
         pacienteServerId = this.pacienteServerId,
         especialidadeServerId = this.especialidadeServerId,
         dataAtendimento = this.dataAtendimento.toDateLong(),
@@ -97,10 +98,22 @@ fun List<PacienteEspecialidadeEntity>.toDtoList(): List<PacienteEspecialidadeDTO
 }
 
 fun List<PacienteEspecialidadeDTO>.toEntityList(
+    pacienteEspecialidadeMapper: PacienteEspecialidadeMapper, // Use o mapper
     deviceId: String = "",
     syncStatus: SyncStatus = SyncStatus.SYNCED
 ): List<PacienteEspecialidadeEntity> {
-    return this.map { it.toPacienteEspecialidadeEntity(deviceId, syncStatus) }
+    // Agora use o mapper em vez do método de extensão
+    return this.mapNotNull { dto ->
+        try {
+            // Você pode usar runBlocking aqui ou tornar esta função suspend
+            runBlocking {
+                pacienteEspecialidadeMapper.dtoToEntity(dto, deviceId, syncStatus)
+            }
+        } catch (e: Exception) {
+            println("Erro ao converter DTO: ${e.message}")
+            null
+        }
+    }
 }
 
 // ==================== PACIENTE MAPPERS ====================
@@ -129,7 +142,6 @@ fun String.toDateLong(): Long {
 fun PacienteEntity.toPacienteDto(): PacienteDto {
     return PacienteDto(
         serverId = this.serverId,
-        localId = this.localId,
         nome = this.nome,
         nomeDaMae = this.nomeDaMae,
         dataNascimento = this.dataNascimento.toDateString(),
@@ -172,7 +184,7 @@ fun PacienteDto.toPacienteEntity(
     } ?: 0L
 
     return PacienteEntity(
-        localId = this.localId ?: UUID.randomUUID().toString(),
+        localId =  UUID.randomUUID().toString(),
         serverId = this.serverId,
         nome = this.nome,
         nomeDaMae = this.nomeDaMae,
@@ -280,8 +292,6 @@ fun PacienteEspecialidadeEntity.toDto(): PacienteEspecialidadeDTO? {
         PacienteEspecialidadeDTO(
             pacienteServerId = this.pacienteServerId,
             especialidadeServerId = this.especialidadeServerId,
-            pacienteLocalId = this.pacienteLocalId,
-            especialidadeLocalId = this.especialidadeLocalId,
             dataAtendimento = this.dataAtendimento?.let { dateFormat.format(Date(it)) }, // Converter timestamp para string de data
             createdAt = dateTimeFormat.format(Date(this.createdAt)),
             updatedAt = dateTimeFormat.format(Date(this.updatedAt)),

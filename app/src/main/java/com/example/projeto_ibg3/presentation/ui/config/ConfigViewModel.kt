@@ -136,49 +136,6 @@ class ConfigViewModel @Inject constructor(
         syncRepository.clearError()
     }
 
-    // Método para inserir especialidades padrão caso não existam no servidor
-    fun insertDefaultEspecialidades() {
-        viewModelScope.launch {
-            try {
-                val defaultEspecialidades = getDefaultEspecialidades()
-
-                for (nome in defaultEspecialidades) {
-                    // Verificar se já existe
-                    val existing = especialidadeRepository.getEspecialidadeByName(nome)
-                    if (existing == null) {
-                        val especialidade = Especialidade(
-                            localId = "", // Será gerado automaticamente
-                            serverId = null,
-                            nome = nome
-                        )
-                        especialidadeRepository.insertEspecialidade(especialidade)
-                        Log.d(TAG, "Inserida especialidade padrão: $nome")
-                    }
-                }
-
-                Log.d(TAG, "Especialidades padrão inseridas")
-            } catch (e: Exception) {
-                Log.e(TAG, "Erro ao inserir especialidades padrão", e)
-                _error.value = "Erro ao criar especialidades padrão: ${e.message}"
-            }
-        }
-    }
-
-    private fun getDefaultEspecialidades(): List<String> {
-        return listOf(
-            "Cardiologia",
-            "Pediatria",
-            "Clínico Geral",
-            "Neurologia",
-            "Ginecologia",
-            "Dermatologia",
-            "Ortopedia",
-            "Endocrinologia",
-            "Oftalmologia",
-            "Psiquiatria"
-        )
-    }
-
     // Métodos para debugging
     fun getDebugInfo(): String {
         return buildString {

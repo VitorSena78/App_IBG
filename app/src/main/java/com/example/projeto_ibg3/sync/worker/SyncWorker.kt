@@ -16,15 +16,13 @@ import dagger.assisted.AssistedInject
 class SyncWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val apiService: ApiService,
-    private val database: AppDatabase
+    private val syncService: SyncService,
 ) : CoroutineWorker(context, params) {
 
     private val retryHelper = ExponentialBackoffRetry()
 
     override suspend fun doWork(): Result {
         return try {
-            val syncService = SyncService(database, apiService, applicationContext)
 
             // Usa retry exponencial
             val result = retryHelper.execute {

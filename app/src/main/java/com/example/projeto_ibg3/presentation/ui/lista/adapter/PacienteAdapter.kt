@@ -202,13 +202,6 @@ class PacienteAdapter(
                         chipSyncStatus.setChipBackgroundColorResource(R.color.sync_conflict)
                     }
 
-                    // Adicionar casos que estavam faltando
-                    null -> {
-                        // Status null - tratar como não sincronizado
-                        syncStatusIndicator.visibility = View.GONE
-                        ivSyncIndicator.visibility = View.GONE
-                        chipSyncStatus.visibility = View.GONE
-                    }
                 }
 
                 // Resetar alpha se não for para deleção

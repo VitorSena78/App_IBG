@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import android.util.Log
+import com.example.projeto_ibg3.data.mappers.toDateLong
 import com.example.projeto_ibg3.data.mappers.toDto
 import com.example.projeto_ibg3.data.mappers.toEntity
 import com.example.projeto_ibg3.data.remote.conflict.ConflictResolution
@@ -503,22 +504,33 @@ class PacienteRepositoryImpl @Inject constructor(
                         }
                     }
 
-                    // SOLUÇÃO SEGURA: Mapear por localId em vez de posição
-                    val serverPacientesMap = serverPacientes.associateBy { it.localId }
-
+                    // Mapear usando campos únicos
                     pacientesToCreate.forEach { localEntity ->
-                        val serverPacienteDto = serverPacientesMap[localEntity.localId]
+                        val matchingServerPaciente = serverPacientes.find { serverDto ->
+                            when {
+                                // Prioridade 1: CPF (mais confiável)
+                                serverDto.cpf.isNotBlank() && localEntity.cpf.isNotBlank() ->
+                                    serverDto.cpf == localEntity.cpf
 
-                        if (serverPacienteDto?.serverId != null) {
+                                // Prioridade 2: SUS (se CPF não disponível)
+                                serverDto.sus?.isNotBlank() == true && localEntity.sus?.isNotBlank() == true ->
+                                    serverDto.sus == localEntity.sus
+
+                                // Prioridade 3: Nome + Data de nascimento (como fallback)
+                                else -> serverDto.nome == localEntity.nome && serverDto.dataNascimento.toDateLong() == localEntity.dataNascimento
+                            }
+                        }
+
+                        if (matchingServerPaciente?.serverId != null) {
                             localDao.updateSyncStatusAndServerId(
                                 localEntity.localId,
                                 SyncStatus.SYNCED,
-                                serverPacienteDto.serverId
+                                matchingServerPaciente.serverId
                             )
                             retryCache.remove(localEntity.localId)
                             Log.d(TAG, "Paciente sincronizado: ${localEntity.nome}")
                         } else {
-                            Log.e(TAG, "ServerId não encontrado para paciente: ${localEntity.localId}")
+                            Log.e(TAG, "Paciente correspondente não encontrado para: ${localEntity.localId}")
                             handleSyncFailure(listOf(localEntity))
                         }
                     }

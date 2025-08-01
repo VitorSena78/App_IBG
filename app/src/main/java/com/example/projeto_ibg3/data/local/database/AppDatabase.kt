@@ -27,7 +27,7 @@ import com.example.projeto_ibg3.data.local.database.entities.SyncMetadataEntity
         SyncMetadataConfigEntity::class,
         SyncQueue::class // Adicione esta linha
     ],
-    version = 21,
+    version = 32,
     exportSchema = false
 )
 @TypeConverters(SyncStatusConverter::class)

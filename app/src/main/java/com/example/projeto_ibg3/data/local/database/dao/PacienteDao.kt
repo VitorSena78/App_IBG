@@ -3,6 +3,7 @@ package com.example.projeto_ibg3.data.local.database.dao
 import androidx.room.*
 import com.example.projeto_ibg3.data.local.database.entities.PacienteEntity
 import com.example.projeto_ibg3.domain.model.SyncStatus
+import com.example.projeto_ibg3.domain.model.SyncStatusCount
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -285,5 +286,223 @@ interface PacienteDao {
         syncStatus: SyncStatus = SyncStatus.PENDING_DELETE,
         updatedAt: Long = System.currentTimeMillis()
     )
+
+    // ==================== MÉTODOS BATCH PARA OTIMIZAÇÃO ====================
+
+    /**
+     * Atualização em batch de status de sincronização e server_id
+     * Usado após criar pacientes no servidor
+     */
+    @Query("""
+    UPDATE pacientes 
+    SET sync_status = :status, 
+        server_id = :serverId, 
+        last_sync_timestamp = :timestamp,
+        sync_attempts = 0,
+        sync_error = NULL,
+        updated_at = :timestamp
+    WHERE local_id = :localId
+""")
+    suspend fun updateSyncStatusAndServerIdSingle(
+        localId: String,
+        status: SyncStatus,
+        serverId: Long,
+        timestamp: Long = System.currentTimeMillis()
+    )
+
+    /**
+     * Atualização em batch de múltiplos pacientes com seus server_ids
+     * Triple: localId, syncStatus, serverId
+     */
+    suspend fun batchUpdateSyncStatusAndServerId(updates: List<Triple<String, SyncStatus, Long>>) {
+        updates.forEach { (localId, status, serverId) ->
+            updateSyncStatusAndServerIdSingle(localId, status, serverId)
+        }
+    }
+
+    /**
+     * Atualização em batch apenas do status de sincronização
+     */
+    suspend fun batchUpdateSyncStatus(localIds: List<String>, status: SyncStatus) {
+        localIds.forEach { localId ->
+            updateSyncStatus(localId, status)
+        }
+    }
+
+    /**
+     * Incremento em batch de tentativas de sincronização
+     * Triple: localId, timestamp, error
+     */
+    suspend fun batchIncrementSyncAttempts(attempts: List<Triple<String, Long, String?>>) {
+        attempts.forEach { (localId, timestamp, error) ->
+            incrementSyncAttempts(localId, timestamp, error)
+        }
+    }
+
+    /**
+     * Atualização de múltiplos pacientes
+     */
+    suspend fun updatePacientes(pacientes: List<PacienteEntity>) {
+        pacientes.forEach { paciente ->
+            updatePaciente(paciente)
+        }
+    }
+
+// ==================== MÉTODOS AUXILIARES PARA ESPECIALIDADES ====================
+
+    /**
+     * Buscar fichas de múltiplas especialidades de uma vez
+     */
+    @Query("SELECT local_id, fichas FROM especialidades WHERE local_id IN (:especialidadeIds)")
+    suspend fun getFichasByIdsFromEspecialidadesRaw(especialidadeIds: List<String>): List<FichaInfo>
+
+
+// ==================== BUSCA OTIMIZADA POR SERVIDOR ====================
+
+    /**
+     * Buscar pacientes por múltiplos server_ids
+     */
+    @Query("SELECT * FROM pacientes WHERE server_id IN (:serverIds) AND is_deleted = 0")
+    suspend fun getPacientesByServerIds(serverIds: List<Long>): List<PacienteEntity>
+
+    /**
+     * Buscar pacientes por múltiplos CPFs
+     */
+    @Query("SELECT * FROM pacientes WHERE cpf IN (:cpfs) AND is_deleted = 0")
+    suspend fun getPacientesByCpfs(cpfs: List<String>): List<PacienteEntity>
+
+// ==================== MÉTODOS DE LIMPEZA E MANUTENÇÃO ====================
+
+    /**
+     * Reset de tentativas de sincronização para itens que tiveram sucesso
+     */
+    @Query("""
+    UPDATE pacientes 
+    SET sync_attempts = 0, 
+        sync_error = NULL, 
+        last_sync_attempt = 0 
+    WHERE sync_status = :status
+""")
+    suspend fun resetSyncAttemptsForStatus(status: SyncStatus = SyncStatus.SYNCED)
+
+    /**
+     * Limpeza de pacientes com muitas tentativas falhadas
+     */
+    @Query("""
+    UPDATE pacientes 
+    SET sync_status = :newStatus 
+    WHERE sync_attempts >= :maxAttempts 
+    AND sync_status IN (:failedStatuses)
+""")
+    suspend fun markFailedAttemptsAsAbandoned(
+        maxAttempts: Int = 5,
+        newStatus: SyncStatus = SyncStatus.CONFLICT,
+        failedStatuses: List<SyncStatus> = listOf(
+            SyncStatus.UPLOAD_FAILED,
+            SyncStatus.DELETE_FAILED
+        )
+    )
+
+// ==================== ESTATÍSTICAS AVANÇADAS ====================
+
+    /**
+     * Contagem de pacientes por status de sincronização
+     */
+    @Query("SELECT sync_status, COUNT(*) as count FROM pacientes WHERE is_deleted = 0 GROUP BY sync_status")
+    suspend fun getSyncStatusCountsRaw(): List<SyncStatusCount>
+
+    // Método auxiliar para converter em Map
+    suspend fun getSyncStatusCounts(): Map<SyncStatus, Int> {
+        return getSyncStatusCountsRaw().associate { it.syncStatus to it.count }
+    }
+
+    /**
+     * Pacientes que falharam mais de X vezes
+     */
+    @Query("""
+    SELECT * FROM pacientes 
+    WHERE sync_attempts > :threshold 
+    AND sync_status IN (:failedStatuses)
+    ORDER BY sync_attempts DESC
+""")
+    suspend fun getPacientesWithHighFailureRate(
+        threshold: Int = 3,
+        failedStatuses: List<SyncStatus> = listOf(
+            SyncStatus.UPLOAD_FAILED,
+            SyncStatus.DELETE_FAILED
+        )
+    ): List<PacienteEntity>
+
+    /**
+     * Últimos pacientes modificados
+     */
+    @Query("""
+    SELECT * FROM pacientes 
+    WHERE is_deleted = 0 
+    AND updated_at > :since 
+    ORDER BY updated_at DESC 
+    LIMIT :limit
+""")
+    suspend fun getRecentlyModifiedPacientes(
+        since: Long,
+        limit: Int = 50
+    ): List<PacienteEntity>
+
+// ==================== VALIDAÇÃO E INTEGRIDADE ====================
+
+    /**
+     * Pacientes órfãos (sem relacionamentos)
+     */
+    @Query("""
+    SELECT p.* FROM pacientes p 
+    LEFT JOIN paciente_has_especialidade pe ON p.local_id = pe.paciente_local_id 
+    WHERE pe.paciente_local_id IS NULL 
+    AND p.is_deleted = 0
+""")
+    suspend fun getPacientesSemRelacionamentos(): List<PacienteEntity>
+
+
+
+    /**
+     * Pacientes com dados inconsistentes
+     */
+    @Query("""
+    SELECT cpf, COUNT(*) as count 
+    FROM pacientes 
+    WHERE cpf IS NOT NULL 
+    AND cpf != '' 
+    AND is_deleted = 0 
+    GROUP BY cpf 
+    HAVING COUNT(*) > 1
+""")
+    suspend fun findDuplicatesByCpfRaw(): List<DuplicateCpfInfo>
+
+    suspend fun findDuplicatesByCpf(): List<Map<String, Any>> {
+        return findDuplicatesByCpfRaw().map {
+            mapOf("cpf" to it.cpf, "count" to it.count)
+        }
+    }
+
+// ==================== BACKUP E RESTAURAÇÃO ====================
+
+    /**
+     * Exportar todos os pacientes para backup
+     */
+    @Query("SELECT * FROM pacientes ORDER BY created_at DESC")
+    suspend fun exportAllPacientesForBackup(): List<PacienteEntity>
+
+    /**
+     * Pacientes criados em um período específico
+     */
+    @Query("""
+    SELECT * FROM pacientes 
+    WHERE created_at BETWEEN :startDate AND :endDate 
+    AND is_deleted = 0 
+    ORDER BY created_at DESC
+""")
+    suspend fun getPacientesByDateRange(
+        startDate: Long,
+        endDate: Long
+    ): List<PacienteEntity>
 
 }

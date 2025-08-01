@@ -428,7 +428,133 @@ interface PacienteEspecialidadeDao {
     @Query("SELECT * FROM pacientes WHERE is_deleted = 0 ORDER BY nome ASC")
     suspend fun getAllPacientesList(): List<PacienteEntity>
 
-    // Se não existir, adicione também:
     @Query("SELECT * FROM pacientes WHERE cpf = :cpf AND is_deleted = 0 LIMIT 1")
     suspend fun getPacienteByCpf(cpf: String): PacienteEntity?
+
+    @Transaction
+    suspend fun insertWithFichasControl(pacienteEspecialidade: PacienteEspecialidadeEntity) {
+        // Inserir o relacionamento
+        insertPacienteEspecialidade(pacienteEspecialidade)
+
+        // Decrementar fichas da especialidade
+        decrementarFichasEspecialidade(pacienteEspecialidade.especialidadeLocalId)
+    }
+
+    @Transaction
+    suspend fun deleteWithFichasControl(
+        pacienteLocalId: String,
+        especialidadeLocalId: String
+    ) {
+        // Marcar como deletado (soft delete)
+        markAsDeleted(pacienteLocalId, especialidadeLocalId)
+
+        // Incrementar fichas da especialidade
+        incrementarFichasEspecialidade(especialidadeLocalId)
+    }
+
+    @Transaction
+    suspend fun restoreWithFichasControl(
+        pacienteLocalId: String,
+        especialidadeLocalId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        // Restaurar o relacionamento
+        restore(pacienteLocalId, especialidadeLocalId, timestamp)
+
+        // Decrementar fichas da especialidade
+        decrementarFichasEspecialidade(especialidadeLocalId)
+    }
+
+    // Métodos auxiliares para controle de fichas
+    @Query("""
+        UPDATE especialidades 
+        SET fichas = CASE 
+            WHEN fichas > 0 THEN fichas - 1 
+            ELSE 0 
+        END,
+        updated_at = :timestamp 
+        WHERE local_id = :especialidadeLocalId
+    """)
+    suspend fun decrementarFichasEspecialidade(
+        especialidadeLocalId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
+    @Query("""
+        UPDATE especialidades 
+        SET fichas = fichas + 1, 
+        updated_at = :timestamp 
+        WHERE local_id = :especialidadeLocalId
+    """)
+    suspend fun incrementarFichasEspecialidade(
+        especialidadeLocalId: String,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
+    // Método para verificar quantas fichas uma especialidade tem
+    @Query("SELECT fichas FROM especialidades WHERE local_id = :especialidadeLocalId")
+    suspend fun getFichasEspecialidade(especialidadeLocalId: String): Int
+
+    // Método para verificar se uma especialidade tem fichas disponíveis
+    @Query("SELECT fichas > 0 FROM especialidades WHERE local_id = :especialidadeLocalId")
+    suspend fun hasEspecialidadeFichasDisponiveis(especialidadeLocalId: String): Boolean
+
+    // MÉTODO PARA SINCRONIZAÇÃO BATCH COM CONTROLE DE FICHAS
+    @Transaction
+    suspend fun syncRelationshipsBatch(
+        toCreate: List<PacienteEspecialidadeEntity>,
+        toDelete: List<Pair<String, String>>, // Pares de (pacienteLocalId, especialidadeLocalId)
+        toRestore: List<Pair<String, String>>
+    ) {
+        // Criar novos relacionamentos e decrementar fichas
+        toCreate.forEach { relationship ->
+            insertWithFichasControl(relationship)
+        }
+
+        // Deletar relacionamentos e incrementar fichas
+        toDelete.forEach { (pacienteId, especialidadeId) ->
+            deleteWithFichasControl(pacienteId, especialidadeId)
+        }
+
+        // Restaurar relacionamentos e decrementar fichas
+        toRestore.forEach { (pacienteId, especialidadeId) ->
+            restoreWithFichasControl(pacienteId, especialidadeId)
+        }
+    }
+
+    // VALIDAÇÃO ANTES DE CRIAR RELACIONAMENTO
+    @Query("""
+        SELECT COUNT(*) FROM especialidades 
+        WHERE local_id = :especialidadeLocalId 
+        AND fichas > 0 
+        AND is_deleted = 0
+    """)
+    suspend fun canCreateRelationship(especialidadeLocalId: String): Int
+
+    // LOG DE AUDITORIA PARA FICHAS
+    @Query("""
+        SELECT e.nome, e.fichas, 
+        (SELECT COUNT(*) FROM paciente_has_especialidade pe 
+         WHERE pe.especialidade_local_id = e.local_id 
+         AND pe.is_deleted = 0) as relacionamentos_ativos
+        FROM especialidades e 
+        WHERE e.is_deleted = 0
+        ORDER BY e.fichas ASC, e.nome ASC
+    """)
+    suspend fun getAuditoriaFichas(): List<AuditoriaFichas>
+
+    // ==================== OPERAÇÕES BATCH ====================
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBatch(pacienteEspecialidades: List<PacienteEspecialidadeEntity>)
+
+    @Update
+    suspend fun updateBatch(pacienteEspecialidades: List<PacienteEspecialidadeEntity>)
+
+    @Transaction
+    suspend fun deleteBatch(paraDeletar: List<Pair<String, String>>) {
+        paraDeletar.forEach { (pacienteLocalId, especialidadeLocalId) ->
+            deletePermanently(pacienteLocalId, especialidadeLocalId)
+        }
+    }
 }

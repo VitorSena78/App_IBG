@@ -481,7 +481,7 @@
 
                         </com.google.android.material.chip.ChipGroup>
 
-                        <!-- Mensagem de validação -->
+                        <!-- Mensagem de validação (erro) -->
                         <TextView
                             android:id="@+id/tv_especialidades_error"
                             android:layout_width="match_parent"
@@ -489,6 +489,16 @@
                             android:layout_marginTop="8dp"
                             android:text="Selecione pelo menos uma especialidade"
                             android:textColor="@color/error"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+
+                        <!-- Mensagem de aviso (warning) - NOVO -->
+                        <TextView
+                            android:id="@+id/tv_especialidades_warning"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textColor="@android:color/holo_orange_dark"
                             android:textSize="12sp"
                             android:visibility="gone" />
 

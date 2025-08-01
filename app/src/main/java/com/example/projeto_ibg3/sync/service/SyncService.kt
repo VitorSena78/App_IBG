@@ -19,7 +19,9 @@ import com.example.projeto_ibg3.data.local.database.entities.SyncQueue
 import com.example.projeto_ibg3.core.extensions.deleteAllEspecialidades
 import com.example.projeto_ibg3.data.mappers.toEntityList
 import com.example.projeto_ibg3.core.constants.SyncConstants
+import com.example.projeto_ibg3.data.mappers.PacienteEspecialidadeMapper
 import com.example.projeto_ibg3.data.mappers.dateFormat
+import com.example.projeto_ibg3.data.mappers.toDateLong
 import com.example.projeto_ibg3.data.mappers.toDateTimeString
 import com.example.projeto_ibg3.sync.worker.SyncWorker
 import com.example.projeto_ibg3.sync.model.SyncResult
@@ -31,7 +33,9 @@ import java.util.Date
 class SyncService(
     private val database: AppDatabase,
     private val apiService: ApiService,
-    private val context: Context
+    private val context: Context,
+    private val pacienteEspecialidadeMapper: PacienteEspecialidadeMapper // ADICIONE ESTA DEPENDÊNCIA
+
 ) {
 
     suspend fun syncData(): SyncResult {
@@ -85,7 +89,7 @@ class SyncService(
     }
 
     private suspend fun syncEspecialidades() {
-        /*try {
+        try {
             val response = apiService.getAllEspecialidades()
             if (response.isSuccessful) {
                 response.body()?.let { apiResponse ->
@@ -96,7 +100,7 @@ class SyncService(
             }
         } catch (e: Exception) {
             println("Erro ao sincronizar especialidades: ${e.message}")
-        }*/
+        }
     }
 
     private suspend fun separateOperationsByType(
@@ -141,7 +145,6 @@ class SyncService(
     private fun convertToPacienteDto(syncData: SyncPacienteData): PacienteDto {
         return PacienteDto(
             serverId = syncData.serverId,
-            localId = syncData.localId,
             nome = syncData.nome,
             dataNascimento = syncData.dataNascimento,
             idade = syncData.idade,
@@ -249,14 +252,14 @@ class SyncService(
 
     private suspend fun updateLocalPacientesWithServerIds(createdPacientes: List<PacienteDto>) {
         for (pacienteDto in createdPacientes) {
-            val localPaciente = database.pacienteDao().getPacienteByLocalId(pacienteDto.localId)
+            // Usar CPF para encontrar o paciente local
+            val localPaciente = database.pacienteDao().getPacienteByCpf(pacienteDto.cpf)
             localPaciente?.let { paciente ->
-                // Usar o método correto do DAO para atualizar com serverId
                 pacienteDto.serverId?.let { serverId ->
                     database.pacienteDao().updateSyncStatusAndServerId(
                         localId = paciente.localId,
                         status = SyncStatus.SYNCED,
-                        serverId = serverId, // Já é Long no DTO
+                        serverId = serverId,
                         timestamp = System.currentTimeMillis()
                     )
                 }
@@ -284,16 +287,21 @@ class SyncService(
     private suspend fun updateEspecialidades(especialidades: List<EspecialidadeDto>) {
         val especialidadesLocal = especialidades.map { dto ->
             Especialidade(
-                localId = dto.localId,
+                localId = UUID.randomUUID().toString(), // Gerar novo localId
                 serverId = dto.serverId,
-                nome = dto.nome
+                nome = dto.nome,
+                fichas = dto.fichas ?: 0,
+                atendimentosRestantesHoje = dto.atendimentosRestantesHoje,
+                atendimentosTotaisHoje = dto.atendimentosTotaisHoje,
+                createdAt = dto.createdAt.toDateLong() ?: System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+                isDeleted = false
             )
         }
 
-        // Converter para Entity antes de inserir no banco
         val especialidadesEntity = especialidadesLocal.toEntityList(
             deviceId = getDeviceId(),
-            syncStatus = SyncStatus.SYNCED
+            syncStatus = SyncStatus.SYNCED,
         )
 
         database.especialidadeDao().deleteAllEspecialidades()
@@ -301,19 +309,20 @@ class SyncService(
     }
 
     private suspend fun updateLocalPacienteFromServer(pacienteDto: PacienteDto) {
-        val existingPaciente = database.pacienteDao().getPacienteByLocalId(pacienteDto.localId)
+        // Primeiro tentar por serverId, depois por CPF
+        val existingPaciente = pacienteDto.serverId?.let { serverId ->
+            database.pacienteDao().getPacienteByServerId(serverId)
+        } ?: database.pacienteDao().getPacienteByCpf(pacienteDto.cpf)
 
         if (existingPaciente != null) {
             // Atualizar paciente existente
             val updatedPaciente = existingPaciente.copy(
-                serverId = pacienteDto.serverId, // Já é Long? no DTO - OK
+                serverId = pacienteDto.serverId,
                 nome = pacienteDto.nome,
-                // CORREÇÃO: Converter String? para Long (dataNascimento)
                 dataNascimento = convertDateStringToTimestamp(pacienteDto.dataNascimento),
                 idade = pacienteDto.idade,
-                // CORREÇÃO: Verificar se não é null antes de usar
                 nomeDaMae = pacienteDto.nomeDaMae ?: "",
-                cpf = pacienteDto.cpf ?: "",
+                cpf = pacienteDto.cpf,
                 sus = pacienteDto.sus ?: "",
                 telefone = pacienteDto.telefone ?: "",
                 endereco = pacienteDto.endereco ?: "",
@@ -325,30 +334,26 @@ class SyncService(
         } else {
             // Criar novo paciente (dados vindos do servidor)
             val newPaciente = PacienteEntity(
-                localId = pacienteDto.localId,
-                serverId = pacienteDto.serverId, // Já é Long? no DTO - OK
+                localId = UUID.randomUUID().toString(), // Gerar novo localId
+                serverId = pacienteDto.serverId,
                 nome = pacienteDto.nome,
-                // CORREÇÃO: Converter String? para Long (dataNascimento)
                 dataNascimento = convertDateStringToTimestamp(pacienteDto.dataNascimento),
                 idade = pacienteDto.idade,
-                // CORREÇÃO: Verificar se não é null antes de usar
                 nomeDaMae = pacienteDto.nomeDaMae ?: "",
-                cpf = pacienteDto.cpf ?: "",
+                cpf = pacienteDto.cpf,
                 sus = pacienteDto.sus ?: "",
                 telefone = pacienteDto.telefone ?: "",
                 endereco = pacienteDto.endereco ?: "",
                 syncStatus = SyncStatus.SYNCED,
                 lastSyncTimestamp = System.currentTimeMillis(),
-                createdAt = System.currentTimeMillis(),
+                createdAt = pacienteDto.createdAt.toDateLong() ?: System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )
 
             database.pacienteDao().insertPaciente(newPaciente)
         }
 
-        // CORREÇÃO: Atualizar especialidades do paciente
-        // Problema: especialidadeIds não existe no PacienteDto
-        // Solução: Verificar se existe ou criar método separado
+        // Atualizar especialidades do paciente
         updatePacienteEspecialidades(pacienteDto)
     }
 
@@ -379,7 +384,12 @@ class SyncService(
 
     // Método separado para especialidades
     private suspend fun updatePacienteEspecialidades(pacienteDto: PacienteDto) {
-        val pacienteLocalId = pacienteDto.localId?: return
+        // Buscar o paciente pelo serverId ou CPF para obter o localId
+        val paciente = pacienteDto.serverId?.let { serverId ->
+            database.pacienteDao().getPacienteByServerId(serverId)
+        } ?: database.pacienteDao().getPacienteByCpf(pacienteDto.cpf)
+
+        val pacienteLocalId = paciente?.localId ?: return
         val pacienteServerId = pacienteDto.serverId
 
         // Se o paciente tem serverId, buscar especialidades do servidor
@@ -411,33 +421,32 @@ class SyncService(
         pacienteLocalId: String,
         especialidadeRelations: List<PacienteEspecialidadeDTO>
     ) {
-        // Remover especialidades existentes para este paciente
-        database.pacienteEspecialidadeDao().deleteByPacienteId(pacienteLocalId)
+        try {
+            // Remover especialidades existentes para este paciente
+            database.pacienteEspecialidadeDao().deleteByPacienteId(pacienteLocalId)
 
-        // Converter DTOs para entities diretamente
-        val entities = especialidadeRelations.map { dto ->
-            PacienteEspecialidadeEntity(
-                pacienteLocalId = pacienteLocalId,
-                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeServerId}",
-                pacienteServerId = null, // Será preenchido depois se necessário
-                especialidadeServerId = dto.especialidadeServerId,
-                syncStatus = SyncStatus.SYNCED,
+            // Converter DTOs para entities usando o mapper
+            val (entities, errors) = pacienteEspecialidadeMapper.dtoListToEntityListSafe(
+                dtoList = especialidadeRelations,
                 deviceId = getDeviceId(),
-                dataAtendimento = System.currentTimeMillis(),
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis(),
-                lastSyncTimestamp = System.currentTimeMillis(),
-                version = 1,
-                isDeleted = false,
-                syncAttempts = 0,
-                lastSyncAttempt = 0L,
-                syncError = null
+                syncStatus = SyncStatus.SYNCED
             )
-        }
 
-        // Usar o método correto do DAO
-        if (entities.isNotEmpty()) {
-            database.pacienteEspecialidadeDao().insertAll(entities)
+            // Log dos erros se houver
+            if (errors.isNotEmpty()) {
+                println("Erros ao converter especialidades para o paciente $pacienteLocalId:")
+                errors.forEach { error -> println("  - $error") }
+            }
+
+            // Inserir no banco apenas os que foram convertidos com sucesso
+            if (entities.isNotEmpty()) {
+                database.pacienteEspecialidadeDao().insertAll(entities)
+                println("${entities.size} especialidades inseridas para o paciente $pacienteLocalId")
+            }
+
+        } catch (e: Exception) {
+            println("Erro ao atualizar especialidades do paciente $pacienteLocalId: ${e.message}")
+            throw e
         }
     }
 
@@ -472,6 +481,7 @@ class SyncService(
         }
     }
 
+    // Para conversão de Entity para DTO
     private suspend fun convertEntityToPacienteEspecialidadeDTO(entity: PacienteEspecialidadeEntity): PacienteEspecialidadeDTO {
         // Buscar serverId do paciente
         val paciente = database.pacienteDao().getPacienteByLocalId(entity.pacienteLocalId)
@@ -484,8 +494,6 @@ class SyncService(
         return PacienteEspecialidadeDTO(
             pacienteServerId = pacienteServerId,
             especialidadeServerId = especialidadeServerId,
-            pacienteLocalId = entity.pacienteLocalId,
-            especialidadeLocalId = entity.especialidadeLocalId,
             dataAtendimento = safeFormatDate(entity.dataAtendimento),
             createdAt = entity.createdAt.toDateTimeString(),
             updatedAt = entity.updatedAt.toDateTimeString(),
@@ -510,8 +518,6 @@ class SyncService(
         return PacienteEspecialidadeDTO(
             pacienteServerId = pacienteServerId,
             especialidadeServerId = especialidadeServerId,
-            pacienteLocalId = pacienteLocalId,
-            especialidadeLocalId = especialidadeLocalId,
             dataAtendimento = safeFormatDate(relation.dataAtendimento),
             createdAt = System.currentTimeMillis().toDateTimeString(),
             updatedAt = System.currentTimeMillis().toDateTimeString(),
@@ -552,19 +558,17 @@ class SyncService(
     private suspend fun updateLocalEspecialidades(especialidadesDto: List<EspecialidadeDto>) {
         val especialidadesLocal = especialidadesDto.map { dto ->
             Especialidade(
-                localId = dto.localId,
+                localId = UUID.randomUUID().toString(), // Gerar novo localId
                 serverId = dto.serverId,
                 nome = dto.nome
             )
         }
 
-        // Converter para Entity antes de inserir no banco
         val especialidadesEntity = especialidadesLocal.toEntityList(
             deviceId = getDeviceId(),
             syncStatus = SyncStatus.SYNCED
         )
 
-        // Atualizar banco local
         database.especialidadeDao().deleteAllEspecialidades()
         database.especialidadeDao().insertEspecialidades(especialidadesEntity)
     }
@@ -600,10 +604,13 @@ class SyncService(
         return especialidades.map { especialidade ->
             EspecialidadeDto(
                 serverId = especialidade.serverId,
-                localId = especialidade.localId,
                 nome = especialidade.nome,
-                deviceId = getDeviceId(),
-                lastSyncTimestamp = especialidade.lastSyncTimestamp
+                fichas = especialidade.fichas,
+                atendimentosRestantesHoje = especialidade.atendimentosRestantesHoje,
+                atendimentosTotaisHoje = especialidade.atendimentosTotaisHoje,
+                createdAt = especialidade.createdAt.toDateTimeString(),
+                updatedAt = System.currentTimeMillis().toDateTimeString(),
+                isDeleted = especialidade.isDeleted
             )
         }
     }
@@ -641,7 +648,7 @@ class SyncService(
         )
     }
 
-    // ADIÇÃO: Método para tratar especialidades se necessário
+    //  Para sincronização de especialidades do servidor
     private suspend fun syncPacienteEspecialidades(pacienteLocalId: String, serverId: Long) {
         try {
             val response = apiService.getPacienteEspecialidades(serverId)
@@ -649,31 +656,25 @@ class SyncService(
             if (response.isSuccessful) {
                 response.body()?.let { apiResponse ->
                     if (apiResponse.success && apiResponse.data != null) {
+                        // Usar o método específico para paciente
+                        val entities = apiResponse.data.mapNotNull { dto ->
+                            try {
+                                pacienteEspecialidadeMapper.dtoToEntityForPaciente(
+                                    dto = dto,
+                                    pacienteLocalId = pacienteLocalId,
+                                    deviceId = getDeviceId(),
+                                    syncStatus = SyncStatus.SYNCED
+                                )
+                            } catch (e: Exception) {
+                                println("Erro ao converter especialidade: ${e.message}")
+                                null
+                            }
+                        }
+
                         // Limpar especialidades existentes
                         database.pacienteEspecialidadeDao().deleteByPacienteId(pacienteLocalId)
 
-                        // Criar entities diretamente
-                        val entities = apiResponse.data.map { dto -> //  data é List<PacienteEspecialidadeDTO>
-                            PacienteEspecialidadeEntity(
-                                pacienteLocalId = pacienteLocalId,
-                                especialidadeLocalId = "${pacienteLocalId}_${dto.especialidadeServerId}", // ✅ CORRETO
-                                pacienteServerId = serverId,
-                                especialidadeServerId = dto.especialidadeServerId,
-                                syncStatus = SyncStatus.SYNCED,
-                                deviceId = getDeviceId(),
-                                dataAtendimento = System.currentTimeMillis(),
-                                createdAt = System.currentTimeMillis(),
-                                updatedAt = System.currentTimeMillis(),
-                                lastSyncTimestamp = System.currentTimeMillis(),
-                                version = 1,
-                                isDeleted = false,
-                                syncAttempts = 0,
-                                lastSyncAttempt = 0L,
-                                syncError = null
-                            )
-                        }
-
-                        // Inserir no banco
+                        // Inserir novas especialidades
                         if (entities.isNotEmpty()) {
                             database.pacienteEspecialidadeDao().insertAll(entities)
                         }

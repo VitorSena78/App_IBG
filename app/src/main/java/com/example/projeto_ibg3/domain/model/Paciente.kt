@@ -4,10 +4,11 @@ import android.util.Log
 import com.example.projeto_ibg3.data.mappers.calcularImc
 import java.util.Calendar
 import java.util.Date
+import java.util.UUID
 
 // Data class para representar um paciente
 data class Paciente(
-    val localId: String,
+    val localId: String = UUID.randomUUID().toString(),
     val serverId: Long? = null,
     val nome: String,
     val dataNascimento: Date,  //mudar para Long futuramente
@@ -30,8 +31,8 @@ data class Paciente(
     // Especialidades associadas
     val especialidades: List<Especialidade> = emptyList(),
     //Dados de controle
-    val createdAt: Date,  //mudar para Long futuramente
-    val updatedAt: Date,  //mudar para Long futuramente
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
     // Campo de sincronização:
     val syncStatus: SyncStatus = SyncStatus.SYNCED,
     val version: Int = 1

@@ -20,6 +20,17 @@ data class EspecialidadeEntity(
     @ColumnInfo(name = "nome")
     val nome: String,
 
+    // Quantidade de fichas disponíveis
+    @ColumnInfo(name = "fichas")
+    val fichas: Int = 0,
+
+    // Campos opcionais para informações de atendimento
+    @ColumnInfo(name = "atendimentos_restantes_hoje")
+    val atendimentosRestantesHoje: Int? = null,
+
+    @ColumnInfo(name = "atendimentos_totais_hoje")
+    val atendimentosTotaisHoje: Int? = null,
+
     // Campos para sincronização
     @ColumnInfo(name = "sync_status")
     val syncStatus: SyncStatus = SyncStatus.PENDING_UPLOAD,
@@ -38,4 +49,10 @@ data class EspecialidadeEntity(
 
     @ColumnInfo(name = "is_deleted")
     val isDeleted: Boolean = false
-)
+){
+    // Método para verificar se a especialidade está disponível
+    fun isAvailable(): Boolean = fichas!! > 0 && !isDeleted
+
+    // Método para verificar se está esgotada
+    fun isEsgotada(): Boolean = fichas!! <= 0
+}
