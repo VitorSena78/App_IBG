@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Configuração para desenvolvimento local -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Adicione aqui todos os IPs/domínios que você usa localmente -->
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">192.168.1.100</domain>
+        <domain includeSubdomains="true">192.168.0.100</domain>
+        <domain includeSubdomains="true">meuservidor.local</domain>
+        <domain includeSubdomains="true">192.168.100.53</domain>
+        <!-- Adicione seu IP local real aqui se for diferente -->
+
+        <trust-anchors>
+            <!-- Aceita certificados do sistema Android -->
+            <certificates src="system"/>
+            <!-- Aceita certificados instalados pelo usuário -->
+            <certificates src="user"/>
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Configuração padrão para outros domínios (produção) -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

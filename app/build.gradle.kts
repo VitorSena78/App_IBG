@@ -3,11 +3,12 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.ksp)
+    id("kotlin-parcelize")
 }
 
 android {
     namespace = "com.example.projeto_ibg3"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.projeto_ibg3"
@@ -54,11 +55,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
+    // https://mvnrepository.com/artifact/com.squareup.leakcanary/leakcanary-android
+    implementation(libs.leakcanary.android)
 
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     implementation(libs.play.services.nearby)
+    implementation(libs.androidx.hilt.common)
+    implementation(libs.transport.runtime)
     ksp(libs.room.compiler)
 
     // Retrofit e OkHttp
@@ -72,6 +77,9 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Testes
     testImplementation(libs.junit)

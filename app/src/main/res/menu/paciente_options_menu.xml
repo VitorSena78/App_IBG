@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Opções básicas -->
     <item
         android:id="@+id/action_view_details"
         android:title="Ver detalhes"
@@ -15,5 +16,34 @@
         android:title="Ligar"
         android:icon="@drawable/ic_call" />
 
+    <!-- Opções de sincronização (serão adicionadas dinamicamente) -->
+    <item
+        android:id="@+id/action_resolve_conflict_local"
+        android:title="Manter versão local"
+        android:icon="@drawable/ic_phone"
+        android:visible="false" />
 
+    <item
+        android:id="@+id/action_resolve_conflict_server"
+        android:title="Usar versão do servidor"
+        android:icon="@drawable/ic_cloud"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/action_retry_sync"
+        android:title="Tentar novamente"
+        android:icon="@drawable/ic_refresh"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/action_restore"
+        android:title="Restaurar"
+        android:icon="@drawable/ic_restore"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/action_force_sync"
+        android:title="Forçar sincronização"
+        android:icon="@drawable/ic_sync"
+        android:visible="false" />
 </menu>

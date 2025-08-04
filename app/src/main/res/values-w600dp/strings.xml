@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="total_format">Total: %1$s</string>
+    <string name="idade_anos">%1$d anos</string>
+    <string name="cpf_label">CPF: %1$s</string>
+    <string name="pendente">Pendente</string>
+    <string name="sincronizando">Sincronizando</string>
+    <string name="deletar">Deletar</string>
+    <string name="erro">Erro</string>
+    <string name="conflito">Conflito</string>
+</resources>

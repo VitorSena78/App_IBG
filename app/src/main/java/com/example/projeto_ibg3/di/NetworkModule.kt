@@ -1,6 +1,6 @@
 package com.example.projeto_ibg3.di
 
-import com.example.projeto_ibg3.data.remote.PacienteApiService
+import com.example.projeto_ibg3.data.remote.api.ApiService
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -17,9 +17,13 @@ import java.util.concurrent.TimeUnit
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+    // FORMATO URL:
+    // Para servidor local: "http://192.168.100.53:8080/api/" ou "http://meuservidor.local/api/"
+    // Para servidor remoto: "https://meudominio.com/api/"
+    // Para emulador Android: "http://10.0.2.2:8080/api/"
 
     // URL base da sua API
-    private const val BASE_URL = "https://api.seuservidor.com/api/v1/"
+    private const val BASE_URL = "http://meuservidor.local/api/"
 
     @Provides
     @Singleton
@@ -56,7 +60,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun providePacienteApiService(retrofit: Retrofit): PacienteApiService {
-        return retrofit.create(PacienteApiService::class.java)
+    fun providePacienteApiService(retrofit: Retrofit): ApiService {
+        return retrofit.create(ApiService::class.java)
     }
 }

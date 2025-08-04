@@ -7,13 +7,13 @@
 
     <fragment
         android:id="@+id/nav_paciente_formulario"
-        android:name="com.example.projeto_ibg3.ui.pacienteformulario.PacienteFormularioFragment"
+        android:name="com.example.projeto_ibg3.presentation.ui.formulario.PacienteFormularioFragment"
         android:label="@string/menu_formulario"
         tools:layout="@layout/fragment_paciente_formulario">
         <argument
-            android:name="pacienteId"
-            app:argType="long"
-            android:defaultValue="0L" />
+            android:name="pacienteLocalId"
+            app:argType="string"
+            android:defaultValue="" />
         <!-- action para config -->
         <action
             android:id="@+id/action_formulario_to_config"
@@ -22,7 +22,7 @@
 
     <fragment
         android:id="@+id/nav_lista"
-        android:name="com.example.projeto_ibg3.ui.Lista.ListaFragment"
+        android:name="com.example.projeto_ibg3.presentation.ui.lista.ListaFragment"
         android:label="@string/lista"
         tools:layout="@layout/fragment_paciente_lista">
 
@@ -49,14 +49,14 @@
 
     <fragment
         android:id="@+id/nav_paciente_detalhe"
-        android:name="com.example.projeto_ibg3.ui.pacientedetalhe.PacienteDetalheFragment"
+        android:name="com.example.projeto_ibg3.presentation.ui.detalhe.PacienteDetalheFragment"
         android:label="Detalhes do Paciente"
         tools:layout="@layout/fragment_paciente_detalhe">
 
         <argument
-            android:name="pacienteId"
-            app:argType="long"
-            android:defaultValue="0L" />
+            android:name="pacienteLocalId"
+            app:argType="string"
+            android:defaultValue="" />
 
         <!-- ACTION -->
         <action
@@ -71,7 +71,7 @@
 
     <fragment
         android:id="@+id/nav_config"
-        android:name="com.example.projeto_ibg3.ui.config.ConfigFragment"
+        android:name="com.example.projeto_ibg3.presentation.ui.config.ConfigFragment"
         android:label="@string/menu_config"
         tools:layout="@layout/fragment_config" />
 
