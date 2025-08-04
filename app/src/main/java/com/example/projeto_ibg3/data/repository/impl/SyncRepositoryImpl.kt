@@ -640,10 +640,22 @@ class SyncRepositoryImpl @Inject constructor(
     // [Demais métodos mantidos com otimizações similares...]
 
     // ==================== MÉTODOS DE REDE E ESTADO ====================
-    private suspend fun isNetworkAvailable(): Boolean = networkManager.checkConnection()
+    private suspend fun isNetworkAvailable(): Boolean {
+        return networkManager.checkConnection()
+    }
 
     private suspend fun isNetworkAndServerAvailable(): Boolean {
-        return networkManager.checkConnection() && networkManager.testServerConnection()
+        // Verifica se tem rede (local)
+        val hasNetwork = networkManager.checkConnection()
+        if (!hasNetwork) {
+            Log.d(TAG, "❌ Sem rede disponível")
+            return false
+        }
+
+        // Testa o servidor
+        val hasServer = networkManager.testServerConnection()
+        Log.d(TAG, "🔍 Rede: $hasNetwork, Servidor: $hasServer")
+        return hasServer
     }
 
     private fun updateSyncState(
