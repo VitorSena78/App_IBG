@@ -31,14 +31,11 @@ class ListaViewModel @Inject constructor(
 
     // ==================== ESTADOS PÚBLICOS ====================
 
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val error: StateFlow<String?> = _error.asStateFlow()
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     // Estados de sincronização vindos do SyncRepository
     val syncState: Flow<SyncState> = syncRepository.syncState
-    val syncProgress = syncRepository.syncProgress
 
     // ==================== DADOS PRINCIPAIS ====================
 
@@ -122,11 +119,6 @@ class ListaViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
-    //Limpa a busca
-    fun clearSearch() {
-        _searchQuery.value = ""
-    }
-
     //Atualiza a lista (pull-to-refresh)
     fun refresh() {
         viewModelScope.launch {
@@ -159,21 +151,6 @@ class ListaViewModel @Inject constructor(
         viewModelScope.launch {
             syncRepository.startSyncPacientes().collect {
                 // Estado observado automaticamente
-            }
-        }
-    }
-
-    //Marca um paciente para deleção (soft delete)
-    fun deletePaciente(paciente: Paciente) {
-        viewModelScope.launch {
-            try {
-                pacienteRepository.deletePaciente(paciente.localId)
-                clearError()
-
-                // Sincronização automática será acionada pela observação de mudanças
-
-            } catch (e: Exception) {
-                _error.value = e.message ?: "Erro ao deletar paciente"
             }
         }
     }
@@ -343,40 +320,6 @@ class ListaViewModel @Inject constructor(
         }
     }
 
-    //Sincronização inteligente baseada no contexto
-    private fun startIntelligentSync() {
-        viewModelScope.launch {
-            combine(
-                syncStats,
-                pacientes.map { it.size }
-            ) { stats, pacientesCount ->
-                Pair(stats, pacientesCount)
-            }.collect { (stats, count) ->
-
-                // Sincronizar se há conflitos ou muitos itens pendentes
-                when {
-                    stats.conflicts > 0 -> {
-                        android.util.Log.d("ListaViewModel", "Conflicts detected, syncing immediately")
-                        performBackgroundSync()
-                    }
-
-                    stats.pendingSync > 10 -> {
-                        android.util.Log.d("ListaViewModel", "Many pending items, syncing immediately")
-                        performBackgroundSync()
-                    }
-
-                    stats.pendingSync > 0 && stats.isOnline -> {
-                        // Sincronizar após um delay se há itens pendentes e está online
-                        delay(30000) // 30 segundos
-                        if (syncRepository.hasPendingChanges()) {
-                            performBackgroundSync()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // ==================== MÉTODOS DE UTILIDADE ====================
 
     //Obtém estatísticas rápidas da lista atual
@@ -394,26 +337,6 @@ class ListaViewModel @Inject constructor(
                 },
                 pacientesSincronizados = list.count { it.syncStatus == SyncStatus.SYNCED }
             )
-        }
-    }
-
-    //Filtra pacientes por status de sincronização
-    fun getPacientesByStatus(status: SyncStatus): Flow<List<Paciente>> {
-        return pacientes.map { list ->
-            list.filter { it.syncStatus == status }
-        }
-    }
-
-    //Obtém pacientes que precisam de atenção (conflitos, falhas, etc.)
-    fun getPacientesNeedingAttention(): Flow<List<Paciente>> {
-        return pacientes.map { list ->
-            list.filter { paciente ->
-                paciente.syncStatus in listOf(
-                    SyncStatus.CONFLICT,
-                    SyncStatus.UPLOAD_FAILED,
-                    SyncStatus.DELETE_FAILED
-                )
-            }
         }
     }
 

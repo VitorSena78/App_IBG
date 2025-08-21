@@ -10,33 +10,24 @@ import com.example.projeto_ibg3.data.remote.dto.PacienteDto
 import com.example.projeto_ibg3.domain.model.Paciente
 import com.example.projeto_ibg3.domain.model.SyncStatus
 import com.example.projeto_ibg3.core.utils.NetworkUtils
-import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import android.util.Log
 import com.example.projeto_ibg3.data.mappers.toDateLong
 import com.example.projeto_ibg3.data.mappers.toDto
 import com.example.projeto_ibg3.data.mappers.toEntity
-import com.example.projeto_ibg3.data.remote.conflict.ConflictResolution
 import com.example.projeto_ibg3.domain.repository.PacienteRepository
 import com.example.projeto_ibg3.sync.model.SyncStatistics
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import java.util.Date
-import java.util.Locale
 
 
 @Singleton
@@ -49,9 +40,6 @@ class PacienteRepositoryImpl @Inject constructor(
     companion object {
         private const val TAG = "PacienteRepositoryImpl"
     }
-
-    // Mutex para evitar sincronizações concorrentes
-    private val syncMutex = Mutex()
 
     // Cache para controle de retry
     private val retryCache = mutableMapOf<String, Int>() // Mudança: usar String para localId
@@ -99,17 +87,6 @@ class PacienteRepositoryImpl @Inject constructor(
             localDao.getPacienteByCpf(cpf)?.takeIf { !it.isDeleted }?.toPaciente()
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao buscar paciente por CPF: $cpf", e)
-            null
-        }
-    }
-
-    // Busca por SUS
-    suspend fun getPacienteBySus(sus: String): Paciente? {
-        return try {
-            Log.d(TAG, "Buscando paciente com SUS: $sus")
-            localDao.getPacienteBySus(sus)?.takeIf { !it.isDeleted }?.toPaciente()
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao buscar paciente por SUS: $sus", e)
             null
         }
     }
@@ -293,147 +270,7 @@ class PacienteRepositoryImpl @Inject constructor(
         }
     }
 
-    // Sincroniza dados do servidor para o local (Download)
-    suspend fun syncFromServer(): Result<Unit> = syncMutex.withLock {
-        if (!networkUtils.isNetworkAvailable()) {
-            return Result.failure(Exception("Sem conexão com a internet"))
-        }
-
-        return try {
-            Log.d(TAG, "Iniciando sincronização do servidor")
-
-            syncMetadataDao.setSyncInProgress(true)
-
-            val lastSync = syncMetadataDao.getLastPatientSyncTimestamp()
-            val response = apiService.getUpdatedPacientes(lastSync)
-
-            if (response.isSuccessful) {
-                val apiResponse = response.body()
-
-                // CORREÇÃO: Extrair a lista do ApiResponse
-                val serverPacientes: List<PacienteDto> = when {
-                    apiResponse?.success == true -> apiResponse.data ?: emptyList()
-                    else -> {
-                        val errorMsg = apiResponse?.error ?: apiResponse?.message ?: "Erro desconhecido"
-                        throw Exception("Erro da API: $errorMsg")
-                    }
-                }
-
-                Log.d(TAG, "Recebidos ${serverPacientes.size} pacientes do servidor")
-
-                // Processar cada paciente
-                serverPacientes.forEach { serverPacienteDto: PacienteDto ->
-                    processServerPaciente(serverPacienteDto)
-                }
-
-                syncMetadataDao.updateLastPatientSyncTimestamp(System.currentTimeMillis())
-                syncMetadataDao.setSyncInProgress(false)
-
-                Log.d(TAG, "Sincronização do servidor concluída com sucesso")
-                Result.success(Unit)
-            } else {
-                syncMetadataDao.setSyncInProgress(false)
-                val error = "Erro HTTP: ${response.code()} - ${response.message()}"
-                Log.e(TAG, error)
-                Result.failure(Exception(error))
-            }
-        } catch (e: Exception) {
-            syncMetadataDao.setSyncInProgress(false)
-            Log.e(TAG, "Erro na sincronização do servidor", e)
-            Result.failure(e)
-        }
-    }
-
-    // Sincroniza dados locais para o servidor (Upload)
-    suspend fun syncToServer(): Result<Unit> = syncMutex.withLock {
-        if (!networkUtils.isNetworkAvailable()) {
-            return Result.failure(Exception("Sem conexão com a internet"))
-        }
-
-        return try {
-            Log.d(TAG, "Iniciando sincronização para o servidor")
-
-            val pendingPacientes = localDao.getPendingUpload()
-            val pendingDeletions = localDao.getPendingDeletion()
-            val failedItems = localDao.getFailedSyncItems()
-
-            Log.d(TAG, "Pending uploads: ${pendingPacientes.size}, deletions: ${pendingDeletions.size}, failed: ${failedItems.size}")
-
-            // Sincronização para uploads
-            if (pendingPacientes.isNotEmpty()) {
-                syncPacientesBatch(pendingPacientes)
-            }
-
-            // Sincronização para deleções
-            if (pendingDeletions.isNotEmpty()) {
-                syncDeletionsBatch(pendingDeletions)
-            }
-
-            // Retry para itens com falha
-            if (failedItems.isNotEmpty()) {
-                retryFailedItems(failedItems)
-            }
-
-            Log.d(TAG, "Sincronização para o servidor concluída")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro na sincronização para o servidor", e)
-            Result.failure(e)
-        }
-    }
-
     // ========== MÉTODOS AUXILIARES ==========
-
-    // Processa dados do servidor com resolução de conflitos
-    private suspend fun processServerPaciente(serverPacienteDto: PacienteDto) {
-        try {
-            val serverId = serverPacienteDto.serverId ?: return
-            val localEntity = localDao.getPacienteByServerId(serverId)
-
-            if (localEntity == null) {
-                // Novo paciente do servidor
-                val entity = serverPacienteDto.toEntity().copy(
-                    syncStatus = SyncStatus.SYNCED,
-                    serverId = serverId,
-                    deviceId = serverPacienteDto.deviceId ?: ""
-                )
-                localDao.insertPaciente(entity)
-                Log.d(TAG, "Novo paciente inserido do servidor: ${serverPacienteDto.nome}")
-            } else {
-                // Verifica conflitos
-                when {
-                    localEntity.syncStatus == SyncStatus.SYNCED -> {
-                        // Sem conflito, atualiza normalmente
-                        val updatedEntity = localEntity.updateFrom(serverPacienteDto).copy(
-                            syncStatus = SyncStatus.SYNCED
-                        )
-                        localDao.updatePaciente(updatedEntity)
-                        Log.d(TAG, "Paciente atualizado do servidor: ${serverPacienteDto.nome}")
-                    }
-
-                    localEntity.updatedAt > (serverPacienteDto.updatedAt?.let { parseTimestamp(it) } ?: 0) -> {
-                        // Dados locais são mais recentes, mantém local
-                        localDao.updateSyncStatus(
-                            localEntity.localId,
-                            SyncStatus.PENDING_UPLOAD
-                        )
-                        Log.d(TAG, "Mantendo dados locais mais recentes: ${serverPacienteDto.nome}")
-                    }
-
-                    else -> {
-                        // Conflito detectado
-                        localDao.markAsConflict(
-                            localEntity.localId,
-                            Gson().toJson(serverPacienteDto)
-                        )
-                        Log.w(TAG, "Conflito detectado para paciente: ${serverPacienteDto.nome}")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao processar paciente do servidor: ${serverPacienteDto.nome}", e)
-        }
-    }
 
     // Sincronização individual
     private suspend fun syncPacienteToServer(localId: String) {
@@ -666,55 +503,10 @@ class PacienteRepositoryImpl @Inject constructor(
 
     // ========== MÉTODOS UTILITÁRIOS ==========
 
-    suspend fun performFullSync(): Result<Unit> {
-        return try {
-            Log.d(TAG, "Iniciando sincronização completa")
-
-            // Primeiro upload dos dados locais
-            syncToServer().getOrThrow()
-
-            // Depois download dos dados do servidor
-            syncFromServer().getOrThrow()
-
-            Log.d(TAG, "Sincronização completa concluída")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro na sincronização completa", e)
-            Result.failure(e)
-        }
-    }
-
     override fun getPendingSyncCount(): Flow<Int> {
         return flow {
             emit(localDao.getPendingSyncCount())
         }.flowOn(Dispatchers.IO)
-    }
-
-    suspend fun getFailedSyncCount(): Int {
-        return try {
-            localDao.getFailedSyncCount()
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao obter contagem de sincronização falhada", e)
-            0
-        }
-    }
-
-    suspend fun hasPendingSync(): Boolean {
-        return getPendingSyncCount().first() > 0
-    }
-
-    suspend fun hasFailedSync(): Boolean {
-        return getFailedSyncCount() > 0
-    }
-
-    suspend fun getLastSyncDate(): Long? {
-        return try {
-            val timestamp = syncMetadataDao.getLastPatientSyncTimestamp()
-            if (timestamp > 0) timestamp else null
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao obter data da última sincronização", e)
-            null
-        }
     }
 
     override suspend fun retryFailedSync(): Result<Unit> {
@@ -789,117 +581,4 @@ class PacienteRepositoryImpl @Inject constructor(
         }.flowOn(Dispatchers.IO)
     }
 
-    // ========== RESOLUÇÃO DE CONFLITOS ==========
-
-    suspend fun resolveConflict(
-        localId: String,
-        resolution: ConflictResolution
-    ): Result<Unit> {
-        return try {
-            val entity = localDao.getPacienteByLocalId(localId)
-            if (entity?.syncStatus == SyncStatus.CONFLICT) {
-                when (resolution) {
-                    ConflictResolution.KEEP_LOCAL -> {
-                        localDao.updateSyncStatus(localId, SyncStatus.PENDING_UPLOAD)
-                        Log.d(TAG, "Conflito resolvido mantendo dados locais: $localId")
-                    }
-                    ConflictResolution.KEEP_SERVER -> {
-                        val serverData = entity.conflictData?.let {
-                            parseServerData(it)
-                        }
-                        if (serverData != null) {
-                            val updatedEntity = entity.updateFrom(serverData).copy(
-                                syncStatus = SyncStatus.SYNCED,
-                                conflictData = null
-                            )
-                            localDao.updatePaciente(updatedEntity)
-                            Log.d(TAG, "Conflito resolvido mantendo dados do servidor: $localId")
-                        }
-                    }
-                    ConflictResolution.MANUAL -> {
-                        // Permite resolução manual pelo usuário
-                        Log.d(TAG, "Conflito marcado para resolução manual: $localId")
-                        // Aqui você pode implementar a lógica específica para resolução manual
-                    }
-
-                    // Adiciona os casos não implementados com aviso para correção futura na API
-                    ConflictResolution.MERGE_AUTOMATIC,
-                    ConflictResolution.MERGE_MANUAL -> {
-                        Log.w(TAG, "Tipo de resolução de conflito não implementado: $resolution para localId: $localId")
-                        Log.w(TAG, "ATENÇÃO: Implementar lógica de resolução de conflitos na API para este tipo")
-
-                        // Por enquanto, marca como pendente para upload (mantém dados locais)
-                        localDao.updateSyncStatus(localId, SyncStatus.PENDING_UPLOAD)
-
-                        // Você pode também retornar um erro se preferir que seja tratado em nível superior
-                        // return Result.failure(Exception("Tipo de resolução não implementado: $resolution"))
-                    }
-                }
-            }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao resolver conflito: $localId", e)
-            Result.failure(e)
-        }
-    }
-
-
-    private fun parseServerData(jsonData: String): PacienteDto? {
-        return try {
-            Gson().fromJson(jsonData, PacienteDto::class.java)
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao fazer parse dos dados do servidor", e)
-            null
-        }
-    }
-
-    // ========== FUNÇÕES AUXILIARES ==========
-
-    // Função para parsing de datas
-    private fun parseDate(dateString: String): Date {
-        return try {
-            // Implementar parsing conforme formato usado no servidor
-            // Exemplo para ISO format: SimpleDateFormat("yyyy-MM-dd").parse(dateString)
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateString) ?: Date()
-        } catch (e: Exception) {
-            Date()
-        }
-    }
-
-    // Função para formatação de datas
-    private fun formatDate(date: Date): String {
-        return try {
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
-    // Função para parsing de timestamps
-    private fun parseTimestamp(timestampString: String): Long {
-        return try {
-            // Se for ISO format
-            Instant.parse(timestampString).toEpochMilli()
-        } catch (e: Exception) {
-            // Se for timestamp em string
-            timestampString.toLongOrNull() ?: System.currentTimeMillis()
-        }
-    }
-
-    // Função para formatação de timestamps
-    private fun formatTimestamp(timestamp: Long): String {
-        return try {
-            Instant.ofEpochMilli(timestamp).toString()
-        } catch (e: Exception) {
-            timestamp.toString()
-        }
-    }
-
-    suspend fun getPendingSyncPacientes(): List<Paciente> {
-        return localDao.getPendingUpload().map { it.toPaciente() }
-    }
-
-    suspend fun syncPaciente(paciente: Paciente) {
-        syncPacienteToServer(paciente.localId)
-    }
 }

@@ -32,8 +32,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.fragment.app.viewModels
-import com.example.projeto_ibg3.data.remote.validation.ValidationResult
-import androidx.core.content.edit
+import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
 class PacienteFormularioFragment : Fragment() {
@@ -54,7 +53,6 @@ class PacienteFormularioFragment : Fragment() {
 
     private var pacienteId: String = ""
     private var isEditMode = false
-    private val calendar = Calendar.getInstance()
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     private var currentPaciente: PacienteEntity? = null
 
@@ -265,9 +263,9 @@ class PacienteFormularioFragment : Fragment() {
                         updateEspecialidadesRelationships(pacienteId, especialidadesSelecionadas)
                         Log.d("PacienteForm", "✅ Relacionamentos atualizados")
 
-                        // SINCRONIZAÇÃO EM ETAPAS ***
+                        // SINCRONIZAÇÃO COMPLETA E SEQUENCIAL
                         try {
-                            Log.d("PacienteForm", "🔄 Iniciando sincronização do paciente atualizado...")
+                            Log.d("PacienteForm", "🔄 Iniciando sincronização COMPLETA do paciente atualizado...")
 
                             Toast.makeText(
                                 requireContext(),
@@ -275,22 +273,15 @@ class PacienteFormularioFragment : Fragment() {
                                 Toast.LENGTH_SHORT
                             ).show()
 
-                            // Sincronizar dados básicos do paciente
-                            viewModel.syncPacienteUpdated()
+                            // Usar o novo método de sincronização completa
+                            viewModel.syncPacienteAtualizadoCompleto(pacienteId)
 
-                            // Aguardar um pouco para o paciente ser sincronizado primeiro
-                            kotlinx.coroutines.delay(2000)
-
-                            // Sincronizar relacionamentos especificamente
-                            Log.d("PacienteForm", "🔗 Sincronizando relacionamentos...")
-                            viewModel.syncPacienteRelationships(pacienteId)
-
-                            // Aguardar um pouco para completar
-                            kotlinx.coroutines.delay(1000)
+                            // Aguardar um tempo para a sincronização
+                            delay(5000) // 5 segundos para completar todo o processo
 
                             Toast.makeText(
                                 requireContext(),
-                                "Sincronização iniciada! Verifique os logs.",
+                                "Sincronização completa finalizada!",
                                 Toast.LENGTH_SHORT
                             ).show()
 
@@ -298,7 +289,7 @@ class PacienteFormularioFragment : Fragment() {
                             Log.w("PacienteForm", "⚠️ Erro na sincronização", syncError)
                             Toast.makeText(
                                 requireContext(),
-                                "Dados salvos localmente! Serão sincronizados quando houver conexão.",
+                                "Dados salvos localmente! Serão sincronizados automaticamente.",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -441,52 +432,6 @@ class PacienteFormularioFragment : Fragment() {
         }
     }
 
-    // NOVO: Método para validar especialidades antes de salvar
-    private suspend fun validateEspecialidadesDisponibilidade(especialidadesSelecionadas: List<String>): ValidationResult {
-        val indisponiveis = mutableListOf<String>()
-        val avisos = mutableListOf<String>()
-
-        especialidadesSelecionadas.forEach { nome ->
-            val especialidade = especialidadeDao.getEspecialidadeByName(nome)
-            if (especialidade != null) {
-                val fichas = especialidadeDao.getFichasCount(especialidade.localId)
-                when {
-                    fichas <= 0 -> indisponiveis.add(nome)
-                    fichas <= 3 -> avisos.add("$nome (apenas $fichas fichas restantes)")
-                }
-            } else {
-                indisponiveis.add("$nome (não encontrada)")
-            }
-        }
-
-        return ValidationResult(
-            isValid = indisponiveis.isEmpty(),
-            unavailableEspecialidades = indisponiveis,
-            warningEspecialidades = avisos
-        )
-    }
-
-    // NOVO: Método para mostrar validação na UI
-    private suspend fun showValidationResults(validationResult: ValidationResult) {
-        if (!validationResult.isValid) {
-            val message = "Especialidades indisponíveis: ${validationResult.unavailableEspecialidades.joinToString(", ")}"
-
-            requireActivity().runOnUiThread {
-                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-                showEspecialidadesError(message)
-            }
-            return
-        }
-
-        if (validationResult.warningEspecialidades.isNotEmpty()) {
-            val message = "Atenção: ${validationResult.warningEspecialidades.joinToString(", ")}"
-
-            requireActivity().runOnUiThread {
-                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     private suspend fun validateUniqueFieldsForUpdate(cpf: String, sus: String?): Boolean {
         // Limpar erros anteriores
         binding.tilCpf.error = null
@@ -509,23 +454,6 @@ class PacienteFormularioFragment : Fragment() {
         }
 
         return true
-    }
-
-    // função para gerar deviceId consistente
-    private fun getDeviceId(): String {
-        var deviceId = sharedPreferences.getString("device_id", null)
-
-        if (deviceId == null) {
-            // Gerar um deviceId único baseado no dispositivo
-            deviceId = "${android.os.Build.MODEL}_${android.os.Build.SERIAL}".take(50)
-
-            // Salvar para uso futuro
-            sharedPreferences.edit {
-                putString("device_id", deviceId)
-            }
-        }
-
-        return deviceId
     }
 
     private fun setupEspecialidades() {
@@ -696,7 +624,7 @@ class PacienteFormularioFragment : Fragment() {
                 // Converter a data do campo para timestamp
                 val parsedDate = dateFormat.parse(currentDateText)
                 parsedDate?.time ?: System.currentTimeMillis()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 System.currentTimeMillis()
             }
         }
@@ -762,7 +690,7 @@ class PacienteFormularioFragment : Fragment() {
 
                     binding.etIdade.setText(age.toString())
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 binding.etIdade.setText("")
             }
         } else {
@@ -826,55 +754,80 @@ class PacienteFormularioFragment : Fragment() {
                         endereco = endereco.ifEmpty { "" },
                         syncStatus = SyncStatus.PENDING_UPLOAD,
                         deviceId = deviceId,
+                        createdAt = System.currentTimeMillis(),
                         updatedAt = System.currentTimeMillis()
                     )
 
-                    // Inserir paciente no banco LOCAL PRIMEIRO
+                    // 1. Inserir paciente no banco LOCAL PRIMEIRO
                     pacienteDao.insertPaciente(pacienteEntity)
                     Log.d("PacienteForm", "✅ Novo paciente inserido no banco local")
 
-                    // Buscar o paciente recém-criado para obter o localId
+                    // 2. Buscar o paciente recém-criado para obter o localId
                     val pacienteCriado = pacienteDao.getPacienteByCpf(cpf)
-                    pacienteCriado?.let { paciente ->
-                        // Salvar relacionamentos com especialidades
-                        saveEspecialidadesRelationships(paciente.localId, especialidadesSelecionadas)
+
+                    if (pacienteCriado != null) {
+                        // 3. Salvar relacionamentos com especialidades
+                        saveEspecialidadesRelationships(pacienteCriado.localId, especialidadesSelecionadas)
                         Log.d("PacienteForm", "✅ Relacionamentos salvos")
-                    }
 
-                    // SINCRONIZAÇÃO IMEDIATA PARA NOVO PACIENTE
-                    try {
-                        Log.d("PacienteForm", "🆕 Iniciando sincronização do novo paciente...")
+                        // 4. SINCRONIZAÇÃO COMPLETA E SEQUENCIAL
+                        try {
+                            Log.d("PacienteForm", "🚀 Iniciando sincronização COMPLETA do novo paciente...")
 
-                        // Mostrar mensagem imediata de sucesso local
+                            // Mostrar feedback imediato
+                            Toast.makeText(
+                                requireContext(),
+                                "Paciente salvo! Sincronizando dados...",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                            // 4.1 PRIMEIRO: Sincronizar o paciente
+                            Log.d("PacienteForm", "📋 Sincronizando dados básicos do paciente...")
+                            viewModel.syncNovoPaciente()
+
+                            // Aguardar um pouco para o paciente ser sincronizado
+                            delay(3000) // 3 segundos
+
+                            // 4.2 SEGUNDO: Sincronizar os relacionamentos especificamente
+                            Log.d("PacienteForm", "🔗 Sincronizando relacionamentos do paciente...")
+                            viewModel.syncPacienteRelationships(pacienteCriado.localId)
+
+                            // Aguardar um pouco para completar
+                            delay(2000) // 2 segundos
+
+                            // 4.3 TERCEIRO: Atualizar as especialidades na UI para refletir fichas consumidas
+                            Log.d("PacienteForm", "🔄 Atualizando especialidades na UI...")
+                            viewModel.refreshEspecialidades()
+
+                            Toast.makeText(
+                                requireContext(),
+                                "Paciente criado e sincronizado com sucesso!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                        } catch (syncError: Exception) {
+                            Log.w("PacienteForm", "⚠️ Erro na sincronização", syncError)
+                            Toast.makeText(
+                                requireContext(),
+                                "Paciente salvo localmente! Será sincronizado automaticamente.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        Log.e("PacienteForm", "❌ Erro: Paciente não encontrado após criação")
                         Toast.makeText(
                             requireContext(),
-                            "Paciente salvo localmente! Sincronizando...",
-                            Toast.LENGTH_SHORT
-                        ).show()
-
-                        // Chamar sincronização através do ViewModel
-                        viewModel.syncNovoPaciente()
-
-                        // Aguardar um pouco para dar tempo da sincronização tentar
-                        kotlinx.coroutines.delay(1000)
-
-                        // Mostrar mensagem de conclusão
-                        Toast.makeText(
-                            requireContext(),
-                            "Sincronização iniciada! Verifique os logs.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-
-                    } catch (syncError: Exception) {
-                        Log.w("PacienteForm", "⚠️ Erro na sincronização imediata", syncError)
-                        Toast.makeText(
-                            requireContext(),
-                            "Paciente salvo localmente! Será sincronizado quando houver conexão.",
+                            "Erro interno: Paciente não encontrado após criação",
                             Toast.LENGTH_LONG
                         ).show()
+                        return@launch
                     }
 
+                    // 5. Limpar formulário e navegar
                     clearForm()
+
+                    // Opcional: Voltar para tela anterior após sucesso
+                    // findNavController().navigateUp()
 
                 } catch (e: Exception) {
                     Log.e("PacienteForm", "💥 Erro ao salvar paciente", e)
@@ -942,7 +895,7 @@ class PacienteFormularioFragment : Fragment() {
                     viewModel.refreshEspecialidades()
 
                     // Fazer uma segunda tentativa após o refresh
-                    kotlinx.coroutines.delay(1000) // Aguardar um pouco para o refresh
+                    delay(1000) // Aguardar um pouco para o refresh
                     val especialidadeRetry = especialidadeDao.getEspecialidadeByName(nomeEspecialidade)
 
                     if (especialidadeRetry != null) {

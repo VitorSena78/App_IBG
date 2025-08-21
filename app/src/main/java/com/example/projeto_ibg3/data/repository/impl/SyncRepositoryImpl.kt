@@ -43,7 +43,6 @@ class SyncRepositoryImpl @Inject constructor(
         private const val TAG = "SyncRepository"
         private const val BATCH_SIZE = 100 // Aumentado para melhor performance
         private const val TOTAL_SYNC_STEPS = 6
-        private const val MAX_RETRY_ATTEMPTS = 3
         private const val CONCURRENT_REQUESTS = 3 // Para processamento paralelo
     }
 
@@ -417,7 +416,7 @@ class SyncRepositoryImpl @Inject constructor(
         val fichasMap = fichasList.associate { it.localId to it.fichas }
 
         val validRelations = relations.filter { relation ->
-            val hasFichas = fichasMap[relation.especialidadeLocalId] ?: 0 > 0
+            val hasFichas = (fichasMap[relation.especialidadeLocalId] ?: 0) > 0
             if (!hasFichas) {
                 // Marcar como falha
                 pacienteEspecialidadeDao.updateSyncStatus(
@@ -445,8 +444,8 @@ class SyncRepositoryImpl @Inject constructor(
 
             if (paciente?.serverId != null && especialidade?.serverId != null) {
                 val response = apiService.create(
-                    pacienteId = paciente.serverId!!.toInt(),
-                    especialidadeId = especialidade.serverId!!.toInt(),
+                    pacienteId = paciente.serverId.toInt(),
+                    especialidadeId = especialidade.serverId.toInt(),
                     dataAtendimento = entity.dataAtendimento?.let {
                         java.time.LocalDate.ofEpochDay(it / 86400000)
                     }
@@ -520,7 +519,7 @@ class SyncRepositoryImpl @Inject constructor(
         val pacientesLocaisByServerId = getCachedPacientes()
         val pacientesLocaisByCpf = pacienteDao.getAllPacientesList()
             .filter { !it.cpf.isNullOrBlank() }
-            .associateBy { it.cpf!! }
+            .associateBy { it.cpf }
 
         val paraInserir = mutableListOf<PacienteEntity>()
         val paraAtualizar = mutableListOf<PacienteEntity>()
@@ -528,7 +527,7 @@ class SyncRepositoryImpl @Inject constructor(
         pacientesDto.forEach { dto ->
             try {
                 val existingByServerId = dto.serverId?.let { pacientesLocaisByServerId[it] }
-                val existingByCpf = dto.cpf?.let { pacientesLocaisByCpf[it] }
+                val existingByCpf = dto.cpf.let { pacientesLocaisByCpf[it] }
 
                 when {
                     existingByServerId != null -> {
@@ -562,7 +561,7 @@ class SyncRepositoryImpl @Inject constructor(
 
     // ==================== MÉTODOS AUXILIARES OTIMIZADOS ====================
     private fun shouldUpdatePaciente(existing: PacienteEntity, dto: PacienteDto): Boolean {
-        val dtoUpdatedAt = dto.updatedAt.toDateLong() ?: 0L
+        val dtoUpdatedAt = dto.updatedAt.toDateLong()
         return dtoUpdatedAt > existing.updatedAt
     }
 
@@ -640,7 +639,7 @@ class SyncRepositoryImpl @Inject constructor(
     // [Demais métodos mantidos com otimizações similares...]
 
     // ==================== MÉTODOS DE REDE E ESTADO ====================
-    private suspend fun isNetworkAvailable(): Boolean {
+    private fun isNetworkAvailable(): Boolean {
         return networkManager.checkConnection()
     }
 
@@ -1080,8 +1079,8 @@ class SyncRepositoryImpl @Inject constructor(
 
             if (paciente?.serverId != null && especialidade?.serverId != null) {
                 val response = apiService.deleteByPathVariables(
-                    pacienteId = paciente.serverId!!.toInt(),
-                    especialidadeId = especialidade.serverId!!.toInt()
+                    pacienteId = paciente.serverId.toInt(),
+                    especialidadeId = especialidade.serverId.toInt()
                 )
 
                 if (response.isSuccessful) {
